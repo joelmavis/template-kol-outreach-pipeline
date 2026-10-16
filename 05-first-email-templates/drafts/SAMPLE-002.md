@@ -1,6 +1,6 @@
 # Draft — SAMPLE-002 — human review required
 
-Tier: B | Priority: P2 | Score: 80.00
+Tier: B | Priority: P2 | Score: 75.00
 AI suggestion: Verify fit and prepare a small collaboration proposal.
 
 Subject: {{COLLABORATION_IDEA}} with {{YOUR_PRODUCT}}

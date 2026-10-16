@@ -1,6 +1,6 @@
 # Draft — SAMPLE-001 — human review required
 
-Tier: A | Priority: P1 | Score: 100.00
+Tier: A | Priority: P1 | Score: 91.00
 AI suggestion: Review evidence and personalize a first-contact draft.
 
 Subject: {{COLLABORATION_IDEA}} with {{YOUR_PRODUCT}}

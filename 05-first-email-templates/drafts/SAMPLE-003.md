@@ -1,6 +1,6 @@
 # Draft — SAMPLE-003 — human review required
 
-Tier: C | Priority: P3 | Score: 60.00
+Tier: C | Priority: P3 | Score: 56.00
 AI suggestion: Research missing evidence before considering outreach.
 
 Subject: {{COLLABORATION_IDEA}} with {{YOUR_PRODUCT}}

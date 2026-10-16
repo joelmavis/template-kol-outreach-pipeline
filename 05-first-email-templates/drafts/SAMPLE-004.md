@@ -1,6 +1,6 @@
 # Draft — SAMPLE-004 — human review required
 
-Tier: D | Priority: P4 | Score: 20.00
+Tier: D | Priority: P4 | Score: 42.00
 AI suggestion: Hold outreach; revisit only if fit or evidence changes.
 
 Subject: {{COLLABORATION_IDEA}} with {{YOUR_PRODUCT}}
