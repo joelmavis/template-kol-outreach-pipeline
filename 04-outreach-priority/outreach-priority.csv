@@ -1,0 +1,5 @@
+candidate_id,sample_marker,tier,priority,recommendation,assessment_type
+SAMPLE-001,示例/SAMPLE,A,P1,Review evidence and personalize a first-contact draft.,AI suggestion
+SAMPLE-002,示例/SAMPLE,B,P2,Verify fit and prepare a small collaboration proposal.,AI suggestion
+SAMPLE-003,示例/SAMPLE,C,P3,Research missing evidence before considering outreach.,AI suggestion
+SAMPLE-004,示例/SAMPLE,D,P4,Hold outreach; revisit only if fit or evidence changes.,AI suggestion

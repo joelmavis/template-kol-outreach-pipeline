@@ -1,0 +1,5 @@
+candidate_id,sample_marker,name,handle,platform,persona_id,source_query,evidence,assessed_on,reviewer,audience_fit,content_relevance,engagement_quality,audience_size_band,brand_safety,collaboration_readiness
+SAMPLE-001,示例/SAMPLE,Sample Creator A,@sample_creator_a,YouTube,SAMPLE-PERSONA,SAMPLE topic + audience,示例/SAMPLE: invented content review; no real source,2026-01-10,SAMPLE reviewer,5,5,5,5,5,5
+SAMPLE-002,示例/SAMPLE,Sample Creator B,@sample_creator_b,X,SAMPLE-PERSONA,SAMPLE topic + audience,示例/SAMPLE: invented content review; no real source,2026-01-10,SAMPLE reviewer,4,4,4,4,4,4
+SAMPLE-003,示例/SAMPLE,Sample Creator C,@sample_creator_c,Xiaohongshu,SAMPLE-PERSONA,SAMPLE topic + audience,示例/SAMPLE: invented content review; no real source,2026-01-10,SAMPLE reviewer,3,3,3,3,3,3
+SAMPLE-004,示例/SAMPLE,Sample Creator D,@sample_creator_d,Podcast,SAMPLE-PERSONA,SAMPLE topic + audience,示例/SAMPLE: invented content review; no real source,2026-01-10,SAMPLE reviewer,1,1,1,1,1,1

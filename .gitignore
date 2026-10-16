@@ -1,0 +1,16 @@
+# Local configuration and credentials
+.DS_Store
+.env
+.env.*
+*.pem
+*.key
+__pycache__/
+*.py[cod]
+# Real records belong in a separate private workspace.
+private/
+local-data/
+uploads/
+*.eml
+*.msg
+*.pdf
+*.xlsx
