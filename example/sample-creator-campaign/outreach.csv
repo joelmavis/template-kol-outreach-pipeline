@@ -1,0 +1,4 @@
+creator_id,current_status,first_contact_at,dm_used,channels,last_contact_at,intent,owner,next_action,next_action_at,opt_out,source
+C-EX-001,Drafted,,false,,,,Campaign lead,Review email and DM drafts,,false,Illustrative draft state only
+C-EX-002,Negotiating,2026-08-08T09:00:00Z,true,Email + DM,2026-08-14T16:20:00Z,High,Campaign lead,Compare package and payment terms,2026-08-16,false,Illustrative correspondence
+C-EX-003,Published,2026-08-05T11:15:00Z,false,Email,2026-09-03T12:00:00Z,Confirmed,Campaign lead,Review D30 evidence and learning summary,2026-09-05,false,Illustrative correspondence and publication record

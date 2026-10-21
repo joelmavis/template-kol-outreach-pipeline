@@ -1,105 +1,81 @@
-# KOL Outreach Pipeline Template
+# Creator Outreach Pipeline
 
-A lightweight, platform-agnostic workspace for people and AI assistants. Define an ideal key opinion leader (KOL), source creators, score evidence, review outreach priorities, and prepare communication drafts. Markdown, CSV, and a local HTML console require no account or online service.
+Creator Outreach Pipeline is a ready-to-use workflow for defining the right creator profile, finding and scoring candidates, preparing personalized outreach, tracking real conversations, and reviewing published partnership results. Open this folder in puppyone Desktop and tell an Agent what you are promoting, who it is for, which platforms matter, and what kind of content you want. The Agent will build a persona for your approval before discovery begins, then keep the workspace and three HTML dashboards up to date. Drafts are never treated as sent messages, and scores never authorize contact. Real work stays in `workspace/`; the complete fictional campaign in `example/sample-creator-campaign/` shows how every stage fits together.
 
-> **Public template. All examples are fictional.** Every creator, handle, assessment, date, and communication was independently written for demonstration and marked SAMPLE. No real people, email addresses, tokens, credentials, or platform exports are included. Sample handles do not identify or link to real accounts.
+## Start with one sentence
 
-## Quick Start
+Say something like:
 
-1. Copy this template into a **private workspace** before using real records. Remove fictional candidate rows, follow-up examples, and generated outputs; keep CSV headers.
-2. Fill in the [ideal persona](01-kol-profile-and-scoring/ideal-kol-persona-template.md), replacing `{{YOUR_PRODUCT}}` and other placeholders. Adjust the [scoring configuration](01-kol-profile-and-scoring/scoring-config.json) using the [scoring guide](01-kol-profile-and-scoring/README.md).
-3. Use the [sourcing playbook](02-sourcing/README.md) and add evidence-backed ratings to [candidates.csv](02-sourcing/candidates.csv). Missing ratings must be researched; they are not silently treated as zero.
-4. Run with Python 3.9 or later (standard library only), from this directory:
+> Build a creator persona for a privacy-first meeting notes app for English-speaking product managers. Focus on YouTube and LinkedIn creators who publish practical workflow tutorials.
 
-   ```sh
-   python3 -m unittest discover tests
-   python3 scripts/score_kols.py --generate-emails
-   ```
+Then continue naturally:
 
-5. Open [dashboard.html](00-console/dashboard.html) locally. Review [ranked candidates](03-scoring-and-ranking/ranked-kols.csv), [priority recommendations](04-outreach-priority/outreach-priority.csv), and [drafts](05-first-email-templates/drafts). Replace placeholders and obtain human review before any use.
-6. Record authorized communications and next actions in [follow-up records](06-follow-up-log/README.md). Nothing sends messages automatically.
+- “The persona looks right. Find up to 20 creators and record only what you can verify.”
+- “Prepare individual email and DM drafts for the top five eligible creators. Do not send anything.”
+- “I sent the email to C-0003 today. Record that fact and suggest the next step.”
+- “This creator offered two packages with different payment terms. Preserve both versions.”
+- “The video went live on 12 November. Create D7, D14 and D30 tracking rows.”
 
-## How to use
+## What you will see
 
-Paste one of these prompts into an AI agent in PuppyOne, replacing the bracketed inputs; use a private copy for real work and keep this public template limited to blank forms and fictional SAMPLE examples.
+- `persona-dashboard.html` — the current creator profile, scoring basis and confirmation state.
+- `outreach-dashboard.html` — ranked candidates, contact states, negotiations, next actions and risks.
+- `performance-dashboard.html` — published collaborations with cumulative D7/D14/D30 evidence.
 
-### Build a KOL persona from scratch
+Each page prints the relevant source-file paths. Links are convenient but are not the only way to navigate in Desktop preview.
 
-Turn a campaign brief into concrete audience, content, evidence, and collaboration criteria.
+## The workflow
 
-```text
-Read AGENTS.md, 99-system-rules/, 01-kol-profile-and-scoring/README.md, and 01-kol-profile-and-scoring/ideal-kol-persona-template.md. Using this brief: [product, campaign goal, audience, markets, budget], help me complete the persona template in my private copy. Ask for missing essentials, preserve placeholders for unknowns, and define topics, platforms, audience size fit, evidence window, engagement signals, exclusions, and success measures. Do not invent evidence or human review. In the public template, retain placeholders or use only independently authored fictional SAMPLE content.
+1. **Persona** — turn a short description, public URL or readable attachment into `workspace/persona.md`; confirm it before discovery.
+2. **Discovery** — find as many candidates as the available evidence supports; never fill a requested quota with invented accounts.
+3. **Scoring and drafts** — score only evidence-ready candidates with the six preserved dimensions; create a separate proposal, email draft and DM opener for each selected creator.
+4. **Outreach** — add a current-state row only after the user reports a real send; append one event for each actual interaction.
+5. **Follow-up** — record replies and facts, preserve opt-outs, and recommend rather than claim future actions.
+6. **Offers and materials** — keep each package and payment structure as a separate offer; save authorized summaries and accessible files under the creator’s stable ID.
+7. **Partnerships** — keep Negotiating, Confirmed, Published, Completed and Closed Lost distinct; publication date is D0.
+8. **Review** — add cumulative D7/D14/D30 evidence only for published deliverables and state attribution limits.
+
+See `PLAYBOOK.md` for field ownership and transition rules. `AGENTS.md` contains the shared rules every compatible file-based Agent should follow.
+
+## Example campaign
+
+`example/sample-creator-campaign/` contains five fictional creators and demonstrates:
+
+- discovery with missing evidence;
+- verified scoring and unsent personalized drafts;
+- synthetic correspondence and negotiation with multiple offers;
+- a confirmed, published partnership with illustrative D7/D14/D30 data.
+
+All names, accounts, messages, URLs and metrics in the example are illustrative. They do not represent real people or activity and are never copied into `workspace/`.
+
+## Keep real work private
+
+The tracked `workspace/*.csv`, `workspace/persona.md` and three root dashboards are intentionally blank starter files. Because they are already tracked by Git, adding them to `.gitignore` would **not** prevent later business data from being committed.
+
+Before entering real creator or commercial information, make a working copy of this folder outside the public repository—for example, unzip the release into a separate private project folder and open that folder in puppyone. Keep the public repository as the distributable blank template. If a maintainer temporarily tests inside the repository, restore the blank workspace, rebuild the root dashboards and run this review before committing:
+
+```sh
+python3 scripts/check_public_release.py
+git status --short -- workspace persona-dashboard.html outreach-dashboard.html performance-dashboard.html
+git diff -- workspace persona-dashboard.html outreach-dashboard.html performance-dashboard.html
 ```
 
-### Source candidates on a given platform
+Review every listed change. The release check blocks non-empty tracked workspace tables, collaboration/draft files, stale root dashboards, non-reserved Example contact domains and common sensitive-data patterns across public Markdown, CSV, HTML and JSON files. In an exported ZIP without Git metadata, it reports the Git check as skipped instead of claiming a clean repository. It complements—not replaces—human review of the complete staged diff.
 
-Use the persona to guide manual discovery and evidence collection on a chosen platform.
+## Maintainer checks
 
-```text
-Read AGENTS.md, 99-system-rules/, 01-kol-profile-and-scoring/ideal-kol-persona-template.md, 01-kol-profile-and-scoring/README.md, 02-sourcing/README.md, 02-sourcing/candidates.csv, and 06-follow-up-log/. For [platform] and [candidate count], propose persona-based search queries and a manual review checklist. Use only evidence I supply from manual research to add complete, evidence-backed rows to 02-sourcing/candidates.csv in my private copy. Preserve stable candidate IDs, deduplicate platform/handle pairs, and check follow-up history and opt-outs. Report missing evidence as Needs verification in your response; do not invent numeric ratings or add incomplete rows. Do not operate the platform or contact anyone. Keep real records out of the public template.
+End users do not need to run scripts. Maintainers and capable Agents rebuild and validate the static views with:
+
+```sh
+python3 scripts/build_dashboards.py
+python3 scripts/build_dashboards.py --source example/sample-creator-campaign --output example/sample-creator-campaign --example
+python3 scripts/validate_workspace.py
+python3 scripts/check_public_release.py
+python3 -m unittest discover tests
 ```
 
-### Score and rank an existing list
+The scripts use only the Python standard library. They do not scrape platforms, send messages, schedule reminders, connect analytics, sign contracts or make payments.
 
-Validate candidate inputs and regenerate the ranking, priorities, and dashboard.
+## License
 
-```text
-Read AGENTS.md, 99-system-rules/, 01-kol-profile-and-scoring/README.md, 01-kol-profile-and-scoring/scoring-config.json, 02-sourcing/candidates.csv, and scripts/score_kols.py. Check the existing list for required fields, duplicate IDs or platform/handle pairs, dates, and evidence-backed ratings within the configured scale. Report unresolved issues without inventing values. Once inputs are valid, run python3 -m unittest discover tests and python3 scripts/score_kols.py --generate-emails from the repository root. Summarize 03-scoring-and-ranking/ranked-kols.csv, 04-outreach-priority/outreach-priority.csv, and 00-console/dashboard.html, noting evidence gaps and human review needs. Regenerate derived files instead of editing them; draft generation replaces 05-first-email-templates/drafts/. Scores do not authorize contact.
-```
-
-### Write first emails for tier A
-
-Prepare tier-A email text for human review using verified evidence and the reusable template.
-
-```text
-Read AGENTS.md, 99-system-rules/, 05-first-email-templates/README.md, 05-first-email-templates/first-email-template.md, and 06-follow-up-log/. Run python3 scripts/score_kols.py --generate-emails to refresh the rankings and drafts; this replaces 05-first-email-templates/drafts/ and generates drafts for every tier, not just A. Select tier A from 03-scoring-and-ranking/ranked-kols.csv, check follow-up history and opt-outs, and present personalized first-email proposals in your response for eligible candidates using [campaign brief] and only supplied, verified content references. Preserve unknown placeholders and flag missing evidence, contact eligibility, brand safety review, or approval. Keep the reusable template's placeholders and do not hand-edit generated drafts. Do not send anything; humans decide whether to contact each candidate.
-```
-
-### Update the follow-up log
-
-Record supplied communication events and next actions without inferring authorization or outcomes.
-
-```text
-Read AGENTS.md, 99-system-rules/, 06-follow-up-log/README.md, 06-follow-up-log/follow-up-template.csv, 06-follow-up-log/follow-up-example.csv, and 02-sourcing/candidates.csv. In my private copy, append one row per supplied event to 06-follow-up-log/follow-up-template.csv using these facts: [candidate ID, event date, channel, actual event, owner, authorization, next action and date]. Preserve the header, stable candidate IDs, and existing history. Use only Draft, Awaiting reply, Replied, Paused, Closed, or Opted out as statuses. Ask about missing facts; do not invent replies, approvals, dates, or contact attempts. Respect opt-outs and the agreed cadence and attempt limit when suggesting next actions. Do not send messages or schedule anything. Keep real events out of the public template.
-```
-
-### Adjust scoring weights and re-rank
-
-Compare the effect of a weight change while preserving the existing scoring dimensions and evidence.
-
-```text
-Read AGENTS.md, 99-system-rules/, 01-kol-profile-and-scoring/README.md, 01-kol-profile-and-scoring/scoring-config.json, 02-sourcing/candidates.csv, and scripts/score_kols.py. Note current scores, tiers, and ranks from 03-scoring-and-ranking/ranked-kols.csv. Apply these requested dimension weights: [weights and rationale] to 01-kol-profile-and-scoring/scoring-config.json, retaining dimension keys, scale, and tier thresholds. Weights must be finite, nonnegative, and have a positive total; they need not sum to 100. Run python3 -m unittest discover tests and python3 scripts/score_kols.py --generate-emails. Report before/after score, rank, and tier changes and explain the tradeoffs. Do not change evidence or ratings to obtain a desired result, and do not hand-edit derived outputs. Draft generation replaces 05-first-email-templates/drafts/; all recommendations remain subject to human review.
-```
-
-## Workspace guide
-
-| Directory | Contents |
-| --- | --- |
-| [00-console](00-console/README.md) | Static dashboard, daily todos, and sync log |
-| [01-kol-profile-and-scoring](01-kol-profile-and-scoring/README.md) | Persona, configurable weighted model, and scoring anchors |
-| [02-sourcing](02-sourcing/README.md) | Cross-platform discovery, query templates, and fictional input CSV |
-| [03-scoring-and-ranking](03-scoring-and-ranking/README.md) | Generated scores and deterministic ranking |
-| [04-outreach-priority](04-outreach-priority/README.md) | Generated tier priorities and recommended actions |
-| [05-first-email-templates](05-first-email-templates/README.md) | First-email template and optional generated drafts |
-| [06-follow-up-log](06-follow-up-log/README.md) | Blank follow-up records and fictional examples |
-| [99-system-rules](99-system-rules/fields-and-statuses.md) | Schema, naming, human review, and public maintenance rules |
-| scripts / tests | Offline generator and standard-library unit tests |
-
-## Daily workflow
-
-1. Confirm the persona, campaign goals, capacity, and current scoring weights.
-2. Search relevant channels, deduplicate by platform and handle, and record evidence and assessment dates.
-3. Review evidence quality, assign dimension ratings, and resolve missing information before scoring.
-4. Regenerate outputs after changes. Scores, tiers, and priorities are **AI suggestions**, not approval to contact anyone. Brand-safety concerns require human review regardless of score.
-5. Review priority recommendations and personalize drafts with a specific, verified content reference and clear collaboration proposal.
-6. Record actual authorized contacts, replies, next actions, and opt-outs. Check the follow-up log before contacting anyone; stop after an opt-out or the agreed follow-up limit.
-
-## Generator options
-
-`python3 scripts/score_kols.py --help` lists `--config`, `--input`, `--output-root`, `--email-template`, and `--generate-emails`. Defaults resolve relative to the repository, so invoking the script from another directory works. Custom paths resolve relative to your working directory. Use a separate output root when experimenting. Email generation replaces the generated drafts directory; keep manual edits elsewhere. Without the flag, existing drafts are left untouched and may be stale.
-
-Weights must be finite, nonnegative, and have a positive total. Ratings must be finite numbers from zero to `scale_max`. Tier thresholds descend strictly from A through D; D starts at zero. Malformed inputs fail before output writing. CSV and HTML are derived views; edit the input and rerun. No scraping, login, scheduled tasks, integrations, or delivery is configured.
-
-## Maintaining the public template
-
-Read [AGENTS.md](AGENTS.md) and [public-template maintenance](99-system-rules/public-template-maintenance.md). Keep real records in a separate private workspace. Ignore rules are only a supporting measure; review content before publication. The template is dedicated to the public domain under [CC0 1.0 Universal](LICENSE).
+Released under [CC0 1.0 Universal](LICENSE). Review all content before publishing a fork, and keep private creator data out of public repositories.

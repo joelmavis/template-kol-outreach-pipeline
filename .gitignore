@@ -14,3 +14,10 @@ uploads/
 *.msg
 *.pdf
 *.xlsx
+
+# These rules protect untracked attachments only. The tracked workspace CSV/MD
+# and root dashboards are NOT protected by .gitignore; run the release check.
+workspace/drafts/*
+!workspace/drafts/.gitkeep
+workspace/collaborations/*
+!workspace/collaborations/.gitkeep

@@ -1,0 +1,8 @@
+event_id,creator_id,event_at,event_type,channel,summary,source,recorded_at
+EV-EX-001,C-EX-002,2026-08-08T09:00:00Z,Sent,Email,Illustrative personalized collaboration inquiry sent,Illustrative campaign record,2026-08-08T09:10:00Z
+EV-EX-002,C-EX-002,2026-08-10T14:30:00Z,Replied,Email,Illustrative reply expressed interest and requested scope details,Illustrative campaign record,2026-08-10T14:45:00Z
+EV-EX-003,C-EX-002,2026-08-14T16:20:00Z,Offer received,Email,Two illustrative scope and payment options received,Illustrative campaign record,2026-08-14T16:35:00Z
+EV-EX-004,C-EX-003,2026-08-05T11:15:00Z,Sent,Email,Illustrative personalized inquiry sent,Illustrative campaign record,2026-08-05T11:20:00Z
+EV-EX-005,C-EX-003,2026-08-07T15:00:00Z,Replied,Email,Illustrative creator proposed a measured workflow experiment,Illustrative campaign record,2026-08-07T15:10:00Z
+EV-EX-006,C-EX-003,2026-08-12T10:00:00Z,Confirmed,Email,Illustrative written confirmation received for one dedicated video,Illustrative confirmation summary,2026-08-12T10:15:00Z
+EV-EX-007,C-EX-003,2026-08-14T13:00:00Z,Published,YouTube,Illustrative dedicated workflow experiment published,Illustrative publication record,2026-08-14T13:20:00Z

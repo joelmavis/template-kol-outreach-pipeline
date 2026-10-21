@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+"""Fail when the public template appears to contain working creator data or stale dashboards."""
+import argparse
+from pathlib import Path
+import re
+import subprocess
+import sys
+from urllib.parse import urlparse
+
+from pipeline import FILES, ROOT, load_workspace, outreach_dashboard, parse_persona, performance_dashboard, persona_dashboard, read_csv
+
+FORBIDDEN_MARKERS = ("youtube.com/" + "channel/", "@" + "gmail.com")
+PUBLIC_PATHS = ("workspace", "persona-dashboard.html", "outreach-dashboard.html", "performance-dashboard.html")
+PUBLIC_TEXT_EXTENSIONS = {".md", ".csv", ".html", ".json"}
+SENSITIVE_LABEL_RE = re.compile(r"\b(?:confidential|internal only|do not share)\b", re.IGNORECASE)
+SECRET_VALUE_RE = re.compile(
+    r"\b(?:api[_ -]?key|access[_ -]?token|password|private[_ -]?key)\b\s*[:=]\s*(?!\*{3}\b)\S+",
+    re.IGNORECASE,
+)
+EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@([A-Z0-9.-]+\.[A-Z]{2,})\b", re.IGNORECASE)
+COMMERCIAL_VALUE_RE = re.compile(
+    r"\b(?:creator\s+)?(?:fee|rate|price|budget|payment(?:\s+amount)?)\b\s*[:=]\s*"
+    r"(?!\*{3}(?:\s|$))(?:[$€£]\s*)?\d[\d,]*(?:\.\d+)?",
+    re.IGNORECASE,
+)
+
+
+def fail(message):
+    raise ValueError(message)
+
+
+def check_blank_workspace(root):
+    workspace = root / "workspace"
+    for filename in FILES.values():
+        _, rows = read_csv(workspace / filename)
+        if rows:
+            fail(f"Public workspace must be blank: workspace/{filename} has {len(rows)} row(s)")
+    _, persona = parse_persona(workspace / "persona.md")
+    if persona.get("Status") not in {"Draft", "Needs confirmation"}:
+        fail("Public workspace persona must be Draft or Needs confirmation")
+    if any(workspace.glob("drafts/*.md")) or any(workspace.glob("collaborations/**/*.md")):
+        fail("Public workspace contains drafts or collaboration material")
+
+
+def check_root_dashboards(root):
+    _, data = load_workspace(root / "workspace")
+    expected = {
+        "persona-dashboard.html": persona_dashboard(root / "workspace"),
+        "outreach-dashboard.html": outreach_dashboard(data, root / "workspace"),
+        "performance-dashboard.html": performance_dashboard(data),
+    }
+    for filename, content in expected.items():
+        if (root / filename).read_text(encoding="utf-8") != content:
+            fail(f"{filename} is stale or was not generated from the blank public workspace")
+
+
+def check_example_domains(root):
+    example = root / "example/sample-creator-campaign"
+    for csv_path in example.glob("*.csv"):
+        _, rows = read_csv(csv_path)
+        for row in rows:
+            for field, value in row.items():
+                value = value.strip()
+                if not value:
+                    continue
+                if field.endswith("_url") or field in {"profile_url", "evidence_url", "metric_source", "business_email_source", "dm_url", "contact_page_url", "content_url", "utm_url"}:
+                    host = urlparse(value).hostname
+                    if host and host != "example.com" and not host.endswith(".example.com"):
+                        fail(f"Example uses a non-reserved URL in {csv_path.name}:{field}")
+                if "email" in field and "@" in value and not value.lower().endswith("@example.com"):
+                    fail(f"Example uses a non-reserved email in {csv_path.name}:{field}")
+
+
+def check_public_text_files(root):
+    for path in root.rglob("*"):
+        if not path.is_file() or ".git" in path.parts or path.suffix.lower() not in PUBLIC_TEXT_EXTENSIONS:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        for marker in FORBIDDEN_MARKERS:
+            if marker.lower() in text.lower():
+                fail(f"Potential private business data found in {path.relative_to(root)}: {marker}")
+        if SENSITIVE_LABEL_RE.search(text):
+            fail(f"Potential confidential text found in {path.relative_to(root)}")
+        if SECRET_VALUE_RE.search(text):
+            fail(f"Potential credential found in {path.relative_to(root)}")
+        relative = path.relative_to(root)
+        if (not relative.parts or relative.parts[0] != "example") and COMMERCIAL_VALUE_RE.search(text):
+            fail(f"Potential unredacted commercial terms found in {relative}")
+        for match in EMAIL_RE.finditer(text):
+            domain = match.group(1).lower()
+            if domain != "example.com" and not domain.endswith(".example.com"):
+                fail(f"Potential private email found in {relative}")
+
+
+def git_status(root):
+    if not (root / ".git").exists():
+        return "Skipped — Not a Git Repository"
+    result = subprocess.run(
+        ["git", "status", "--short", "--", *PUBLIC_PATHS], cwd=root, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        return f"Skipped — Git status unavailable ({result.stderr.strip() or 'unknown error'})"
+    return result.stdout.rstrip() or "clean"
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, default=ROOT, help="Repository or release-copy root to inspect")
+    args = parser.parse_args(argv)
+    root = args.root.resolve()
+    try:
+        check_blank_workspace(root)
+        check_root_dashboards(root)
+        check_example_domains(root)
+        check_public_text_files(root)
+    except (OSError, ValueError) as error:
+        print(f"BLOCKED: {error}", file=sys.stderr)
+        return 1
+    print("OK public-release data boundary: blank workspace, blank-derived root dashboards, reserved example domains, public text scan")
+    print("Git status:", git_status(root))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
