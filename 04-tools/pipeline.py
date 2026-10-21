@@ -430,6 +430,120 @@ def table(headers, rows, empty):
     return f'<div class="table-wrap"><table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
 
 
+CHART_COLORS = ("#256b52", "#315f77", "#a86e19", "#9b4a4a", "#718f78", "#77638f")
+DIMENSION_LABELS = {
+    "audience_fit": "Audience fit",
+    "content_relevance": "Content relevance",
+    "engagement_quality": "Engagement quality",
+    "audience_size_band": "Audience size",
+    "brand_safety": "Brand safety",
+    "collaboration_readiness": "Collaboration readiness",
+}
+
+
+def compact_number(value):
+    value = float(value)
+    if abs(value) >= 1_000_000:
+        return f"{value / 1_000_000:.1f}M".replace(".0M", "M")
+    if abs(value) >= 1_000:
+        return f"{value / 1_000:.1f}K".replace(".0K", "K")
+    return f"{value:,.0f}"
+
+
+def donut_chart(items, *, aria_label, center_value, center_label, value_suffix=""):
+    """Render a labelled, dependency-free SVG donut from non-negative source values."""
+    prepared = [(str(label), float(value), color) for (label, value, color) in items if float(value) > 0]
+    total = sum(value for _, value, _ in prepared)
+    if total <= 0:
+        return '<div class="empty">No eligible records yet, so no distribution is shown.</div>'
+    radius = 72
+    circumference = 2 * math.pi * radius
+    offset = 0.0
+    segments = []
+    legends = []
+    for label, value, color in prepared:
+        length = circumference * value / total
+        segments.append(
+            f'<circle cx="110" cy="110" r="{radius}" fill="none" stroke="{color}" stroke-width="24" '
+            f'stroke-dasharray="{length:.3f} {circumference - length:.3f}" stroke-dashoffset="{-offset:.3f}" />'
+        )
+        offset += length
+        share = value / total * 100
+        display_value = f"{value:,.0f}{value_suffix} weight" if value_suffix else f"{value:,.0f} · {share:.0f}% of total"
+        legends.append(
+            f'<div class="legend-item"><span class="swatch" style="background:{color}"></span>'
+            f'<span><b>{escape(label)}</b><small>{escape(display_value)}</small></span></div>'
+        )
+    return f'''<div class="chart-layout"><div class="donut-wrap"><svg class="donut" viewBox="0 0 220 220" role="img" aria-label="{escape(aria_label)}">
+<circle cx="110" cy="110" r="{radius}" fill="none" stroke="#ebe5dc" stroke-width="24" />
+<g transform="rotate(-90 110 110)">{''.join(segments)}</g>
+<text x="110" y="105" text-anchor="middle" class="chart-center-value">{escape(str(center_value))}</text>
+<text x="110" y="126" text-anchor="middle" class="chart-center-label">{escape(center_label)}</text></svg></div>
+<div class="legend">{''.join(legends)}</div></div>'''
+
+
+def horizontal_bars(items, *, aria_label, empty_message, suffix="", scale_max=None):
+    """Render accessible CSS bars while keeping exact values visible as text."""
+    prepared = [(str(label), float(value), detail, color) for label, value, detail, color in items]
+    if not prepared or not any(value > 0 for _, value, _, _ in prepared):
+        return f'<div class="empty">{escape(empty_message)}</div>'
+    maximum = float(scale_max) if scale_max is not None else (max(value for _, value, _, _ in prepared) or 1)
+    rows = []
+    for label, value, detail, color in prepared:
+        width = min(100, value / maximum * 100) if value > 0 else 0
+        value_text = f"{value:,.1f}" if suffix == "%" else f"{value:,.0f}"
+        rows.append(f'''<div class="bar-row"><div class="bar-heading"><b>{escape(label)}</b><span>{value_text}{escape(suffix)}</span></div>
+<div class="bar-track" role="img" aria-label="{escape(label)}: {value_text}{escape(suffix)}"><i style="width:{width:.2f}%;background:{color}"></i></div>
+<small>{escape(detail)}</small></div>''')
+    return f'<div class="bar-chart" aria-label="{escape(aria_label)}">{"".join(rows)}</div>'
+
+
+def line_chart(labels, series, *, aria_label):
+    """Render a compact SVG line chart from recorded cumulative values only."""
+    numeric = [value for _, values, _ in series for value in values if value is not None]
+    if not numeric:
+        return '<div class="empty">No eligible D7, D14 or D30 measurements yet, so no trend is shown.</div>'
+    width, height = 680, 280
+    left, right, top, bottom = 58, 22, 22, 48
+    plot_w, plot_h = width - left - right, height - top - bottom
+    maximum = max(numeric) or 1
+    x_positions = [left + (plot_w * index / max(1, len(labels) - 1)) for index in range(len(labels))]
+    grid = []
+    for index in range(5):
+        fraction = index / 4
+        y = top + plot_h * fraction
+        value = maximum * (1 - fraction)
+        grid.append(
+            f'<line x1="{left}" y1="{y:.2f}" x2="{width-right}" y2="{y:.2f}" class="grid-line" />'
+            f'<text x="{left-9}" y="{y+4:.2f}" text-anchor="end" class="axis-label">{escape(compact_number(value))}</text>'
+        )
+    x_axis = "".join(
+        f'<text x="{x:.2f}" y="{height-17}" text-anchor="middle" class="axis-label">{escape(label)}</text>'
+        for label, x in zip(labels, x_positions)
+    )
+    paths, legends = [], []
+    for name, values, color in series:
+        points = []
+        dots = []
+        exact = []
+        for label, x, value in zip(labels, x_positions, values):
+            if value is None:
+                continue
+            y = top + plot_h - (float(value) / maximum * plot_h)
+            points.append(f"{x:.2f},{y:.2f}")
+            dots.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="5" fill="{color}"><title>{escape(name)} · {escape(label)}: {float(value):,.0f}</title></circle>')
+            exact.append(f"{label} {float(value):,.0f}")
+        if len(points) > 1:
+            paths.append(f'<polyline points="{" ".join(points)}" fill="none" stroke="{color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />')
+        paths.extend(dots)
+        legends.append(
+            f'<div class="series-key"><span class="swatch" style="background:{color}"></span>'
+            f'<span><b>{escape(name)}</b><small>{escape(" · ".join(exact))}</small></span></div>'
+        )
+    return f'''<div class="line-chart"><svg viewBox="0 0 {width} {height}" role="img" aria-label="{escape(aria_label)}">
+{"".join(grid)}{"".join(paths)}{x_axis}</svg><div class="series-legend">{"".join(legends)}</div></div>'''
+
+
 def page(title, eyebrow, intro, body, *, example=False):
     note = '<div class="sample">Example · Illustrative data and fictional creators</div>' if example else ""
     footer = "Example · Illustrative data and fictional creators" if example else "Creator Outreach Pipeline · Generated from local workspace files"
@@ -438,12 +552,14 @@ def page(title, eyebrow, intro, body, *, example=False):
 <title>{escape(title)} · Creator Outreach Pipeline</title><style>
 :root{{--ink:#18211f;--muted:#66716d;--paper:#f6f3ed;--card:#fffdfa;--line:#ded8ce;--green:#256b52;--sage:#dfeae2;--gold:#a86e19;--rose:#9b4a4a;--blue:#315f77}}
 *{{box-sizing:border-box}}body{{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}}main{{max-width:1180px;margin:auto;padding:48px 28px 72px}}header{{border-bottom:1px solid var(--line);padding-bottom:28px;margin-bottom:26px}}.eyebrow{{color:var(--green);font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}}h1{{font:700 clamp(34px,6vw,64px)/1.02 Georgia,serif;max-width:800px;margin:10px 0 14px}}h2{{font:700 27px/1.15 Georgia,serif;margin:0 0 14px}}h3{{font-size:14px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 8px}}p{{max-width:820px}}.intro{{font-size:18px;color:#3e4845}}.sample{{display:inline-block;margin-top:15px;padding:6px 10px;border:1px solid #c9bba4;border-radius:999px;color:#745b37;font-size:12px}}.grid{{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;margin:18px 0 28px}}.card{{grid-column:span 4;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 8px 24px #332a1c0a}}.wide{{grid-column:span 12}}.half{{grid-column:span 6}}.metric{{font:700 34px/1 Georgia,serif;margin:7px 0}}.label,.muted{{color:var(--muted)}}.badge{{display:inline-block;border-radius:999px;padding:4px 9px;background:#e9ecea;font-size:12px;white-space:nowrap}}.good{{background:var(--sage);color:#174a38}}.warn{{background:#f4e8cf;color:#765018}}.risk{{background:#f3dddd;color:#7c3333}}.table-wrap{{overflow:auto;border:1px solid var(--line);border-radius:14px;background:var(--card)}}table{{border-collapse:collapse;width:100%;min-width:720px}}th,td{{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}}th{{background:#eee9e0;font-size:12px;text-transform:uppercase;letter-spacing:.05em}}tr:last-child td{{border-bottom:0}}.empty{{border:1px dashed #b8b1a6;border-radius:14px;padding:26px;color:var(--muted);background:#fbf9f5}}.path{{font-family:ui-monospace,SFMono-Regular,monospace;background:#ece8df;border-radius:7px;padding:2px 6px}}.bar{{height:8px;background:#ebe5dc;border-radius:99px;overflow:hidden;margin-top:8px}}.bar i{{display:block;height:100%;background:var(--green)}}footer{{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}}
-@media(max-width:760px){{main{{padding:30px 16px 50px}}.card,.half{{grid-column:span 12}}}}
+.chart-layout{{display:grid;grid-template-columns:minmax(210px,.7fr) minmax(260px,1.3fr);gap:24px;align-items:center}}.donut-wrap{{max-width:260px;margin:auto;width:100%}}.donut{{display:block;width:100%;height:auto}}.chart-center-value{{font:700 28px Georgia,serif;fill:var(--ink)}}.chart-center-label{{font-size:11px;fill:var(--muted);text-transform:uppercase;letter-spacing:.08em}}.legend{{display:grid;gap:10px}}.legend-item,.series-key{{display:flex;gap:10px;align-items:flex-start}}.legend-item small,.series-key small,.bar-row small{{display:block;color:var(--muted);margin-top:2px}}.swatch{{width:11px;height:11px;border-radius:3px;flex:0 0 auto;margin-top:5px}}.bar-chart{{display:grid;gap:15px;margin-top:12px}}.bar-heading{{display:flex;justify-content:space-between;gap:16px}}.bar-track{{height:10px;background:#ebe5dc;border-radius:99px;overflow:hidden;margin:6px 0 4px}}.bar-track i{{display:block;height:100%;border-radius:99px}}.line-chart svg{{display:block;width:100%;height:auto;overflow:visible}}.grid-line{{stroke:#ded8ce;stroke-width:1}}.axis-label{{fill:var(--muted);font-size:12px}}.series-legend{{display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:12px}}.chart-note{{color:var(--muted);font-size:13px;margin-top:12px}}.chart-stack{{display:grid;gap:16px}}.chart-panel{{border-top:1px solid var(--line);padding-top:18px}}.chart-panel:first-child{{border-top:0;padding-top:0}}footer{{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}}
+.quarter{{grid-column:span 3}}@media(max-width:900px){{.quarter{{grid-column:span 6}}}}@media(max-width:760px){{main{{padding:30px 16px 50px}}.card,.half,.quarter{{grid-column:span 12}}.chart-layout{{grid-template-columns:1fr}}.donut-wrap{{max-width:220px}}.series-legend{{display:grid}}}}
 </style></head><body><main><header><div class="eyebrow">{escape(eyebrow)}</div><h1>{escape(title)}</h1><p class="intro">{escape(intro)}</p>{note}</header>{body}<footer>{escape(footer)}</footer></main></body></html>'''
 
 
 def persona_dashboard(source, *, example=False):
     _, values = parse_persona(Path(source) / "persona.md")
+    config = load_config()
     source_label = "02-examples/sample-creator-campaign" if example else "01-workspace"
     status = values.get("Status", "Needs confirmation")
     tone = "good" if status == "Confirmed" else "warn"
@@ -456,9 +572,21 @@ def persona_dashboard(source, *, example=False):
         ("Exclusions / brand-safety rules", values.get("Exclusions / brand-safety rules", "")),
     ]
     cards = "".join(f'<section class="card half"><h3>{escape(label)}</h3><p>{fmt(value)}</p></section>' for label, value in items)
+    weight_items = [
+        (DIMENSION_LABELS[key], value, CHART_COLORS[index])
+        for index, (key, value) in enumerate(config["dimensions"].items())
+    ]
+    weight_chart = donut_chart(
+        weight_items,
+        aria_label="Six creator scoring dimensions and their configured weights",
+        center_value="100%",
+        center_label="Scoring weight",
+        value_suffix="%",
+    )
     body = f'''<div class="grid"><section class="card"><div class="label">Confirmation</div><div class="metric">{badge(status, tone)}</div><div class="muted">Version {fmt(values.get('Version',''))}</div></section>
 <section class="card"><div class="label">Confirmed at</div><div class="metric" style="font-size:20px">{fmt(values.get('Confirmed at',''))}</div></section>
 <section class="card"><div class="label">Source of truth</div><p><span class="path">{source_label}/persona.md</span></p></section>{cards}</div>
+<section class="grid"><div class="card wide"><h2>How candidates are weighted</h2><p class="muted">The six dimensions below determine the evidence-backed score. Higher weight means the criterion has more influence on the final tier.</p>{weight_chart}<p class="chart-note">Weights come from <span class="path">03-config/scoring-config.json</span>. A weight is not a creator result; each rating still requires recorded evidence.</p></div></section>
 <section class="grid"><div class="card half"><h2>Preferences</h2><p><b>Languages / regions:</b> {fmt(values.get('Preferred languages / regions',''))}</p><p><b>Audience size:</b> {fmt(values.get('Audience size preference',''))}</p><p><b>Formats:</b> {fmt(values.get('Preferred collaboration formats',''))}</p><p><b>Budget:</b> {fmt(values.get('Budget guidance',''))}</p></div><div class="card half"><h2>Evidence and open items</h2><p><b>Sources:</b> {fmt(values.get('Sources',''))}</p><p><b>Assumptions:</b> {fmt(values.get('Assumptions',''))}</p><p><b>Open questions:</b> {fmt(values.get('Open questions',''))}</p></div></section>
 <p class="muted">Confirm this persona before broad discovery. If it changes, update the version and rescore candidates from evidence. File path: <span class="path">{source_label}/persona.md</span>.</p>'''
     return page("Creator persona", "Plan and confirm", "The shared definition of who fits, why they fit, and what must be excluded before discovery begins.", body, example=example)
@@ -478,6 +606,45 @@ def outreach_dashboard(data, source, *, example=False):
         ("Negotiating", counts["Negotiating"]),
     ]
     metrics = "".join(f'<section class="card"><div class="label">{label}</div><div class="metric">{value}</div></section>' for label, value in stats)
+    stage_counts = Counter()
+    for creator_id in creators:
+        state = outreach.get(creator_id, {}).get("current_status", "").strip()
+        if state in {"Sent"}:
+            stage_counts["Contacted"] += 1
+        elif state == "Replied":
+            stage_counts["Replied"] += 1
+        elif state == "Negotiating":
+            stage_counts["Negotiating"] += 1
+        elif state in {"Confirmed", "Published", "Completed"}:
+            stage_counts["Won"] += 1
+        elif state in {"Opted out", "Closed Lost"}:
+            stage_counts["Closed"] += 1
+        else:
+            stage_counts["Pending"] += 1
+    stage_order = ("Pending", "Contacted", "Replied", "Negotiating", "Won", "Closed")
+    stage_items = [
+        (label, stage_counts[label], CHART_COLORS[index])
+        for index, label in enumerate(stage_order)
+        if stage_counts[label]
+    ]
+    stage_chart = donut_chart(
+        stage_items,
+        aria_label="Creator outreach status distribution",
+        center_value=len(creators),
+        center_label="Creators",
+    )
+    tier_counts = Counter(row.get("tier", "") for row in creators.values())
+    tier_colors = {"A": "#256b52", "B": "#315f77", "C": "#a86e19", "D": "#9b4a4a"}
+    tier_items = [
+        (f"Tier {tier}", tier_counts[tier], f"{tier_counts[tier]} scored creators", tier_colors[tier])
+        for tier in "ABCD"
+    ]
+    tier_chart = horizontal_bars(
+        tier_items,
+        aria_label="A B C D creator tier distribution",
+        empty_message="No evidence-ready creators have a score yet, so no tier distribution is shown.",
+    )
+    unscored_count = sum(1 for row in creators.values() if row.get("tier") in {"", "Unscored"})
     ordered = sorted(creators.values(), key=lambda row: (int(row["rank"]) if row.get("rank") else 9999, row["creator_id"]))
     candidate_rows = []
     for row in ordered:
@@ -496,7 +663,8 @@ def outreach_dashboard(data, source, *, example=False):
     for row in sorted(data["offers"], key=lambda item: item.get("updated_at", ""), reverse=True):
         amount = row.get("negotiated_amount") or row.get("original_amount")
         offer_rows.append([fmt(row["offer_id"]), fmt(row["creator_id"]), fmt(row["collaboration_type"]), f"{fmt(row['currency'], '')} {fmt(amount, 'Not recorded')}", fmt(row["payment_terms"]), badge(row["status"], "warn" if row["status"] == "Under review" else "good")])
-    body = f'''<div class="grid">{metrics}</div><section class="grid"><div class="card wide"><h2>Candidate priority and current state</h2>{table(['ID','Creator','Score / tier','Evidence','Current state','Next action or gap'], candidate_rows, 'No creators yet. Confirm the persona, then ask the Agent to discover a specific number with verifiable evidence.')}</div></section>
+    body = f'''<div class="grid">{metrics}</div><section class="grid"><div class="card half"><h2>Outreach status</h2><p class="muted">Each creator appears once at their current furthest recorded stage.</p>{stage_chart}</div><div class="card half"><h2>Score tiers</h2><p class="muted">Evidence-ready creators grouped by the configured A–D thresholds.</p>{tier_chart}<p class="chart-note">Unscored creators: {unscored_count}. They are excluded from the A–D bars until the required evidence is complete.</p></div></section>
+<section class="grid"><div class="card wide"><h2>Candidate priority and current state</h2>{table(['ID','Creator','Score / tier','Evidence','Current state','Next action or gap'], candidate_rows, 'No creators yet. Confirm the persona, then ask the Agent to discover a specific number with verifiable evidence.')}</div></section>
 <section class="grid"><div class="card wide"><h2>Latest recorded activity</h2>{table(['When','Creator','Event','What happened','Source'], event_rows, 'No actual contact events recorded. Drafts do not create activity.')}</div></section>
 <section class="grid"><div class="card wide"><h2>Offer versions</h2>{table(['Offer','Creator','Scope','Amount','Payment terms','Status'], offer_rows, 'No offers recorded. Keep each scope and payment option as a separate row.')}</div></section>
 <p class="muted">Source files: <span class="path">{source_label}/creators.csv</span> and <span class="path">{source_label}/outreach-progress.csv</span>. The consolidated progress table keeps outreach state, activity history, offers and partnerships as separate record types. A draft or score never means a message was sent.</p>'''
@@ -544,6 +712,8 @@ def performance_dashboard(data, *, example=False):
     rows = []
     insights = []
     comparison_groups = defaultdict(list)
+    latest_records = []
+    trend_panels = []
     for key, partnership in partnerships.items():
         creator = creators[partnership["creator_id"]]
         windows = grouped.get(key, {})
@@ -551,10 +721,25 @@ def performance_dashboard(data, *, example=False):
         if not latest:
             continue
         tracking_verified = partnership.get("tracking_verified", "").lower() == "true"
+        latest_records.append((creator, partnership, latest, tracking_verified))
         latest_cpd = cost_value(latest, "downloads", tracking_verified=tracking_verified)
         latest_cpi = cost_value(latest, "installs", tracking_verified=tracking_verified)
         spend_label = spend_value(latest)
         published_cards.append(f'''<section class="card half"><h2>{fmt(creator['name'])}</h2><p>{badge(partnership['status'], 'good')} · {fmt(partnership['content_type'])}</p><p><b>D0:</b> {fmt(partnership['published_at'])}<br><b>Latest window:</b> {fmt(latest['window'])}<br><b>Attribution:</b> {fmt(latest['attribution_source'])}<br><b>Spend:</b> {spend_label}<br><b>Cost / download:</b> {latest_cpd}<br><b>Cost / install:</b> {latest_cpi}</p><p class="muted">{fmt(latest['notes'])}</p></section>''')
+        labels = [window for window in ("D7", "D14", "D30") if window in windows]
+        if labels:
+            trend_series = []
+            for metric, label, color in (
+                ("downloads", "Downloads", CHART_COLORS[0]),
+                ("installs", "Installs", CHART_COLORS[1]),
+                ("activated_users", "Activated users", CHART_COLORS[2]),
+            ):
+                values = [number(windows[window].get(metric, ""), metric, allow_blank=True) for window in labels]
+                trend_series.append((label, values, color))
+            chart = line_chart(labels, trend_series, aria_label=f"{creator['name']} cumulative performance by measurement window")
+            trend_panels.append(
+                f'<div class="chart-panel"><h3>{fmt(creator["name"])} · {fmt(partnership["deliverable_id"])}</h3>{chart}</div>'
+            )
         if not tracking_verified or latest.get("verification_status") not in {"Verified", "Illustrative"}:
             insights.append(f"{creator['name']}: verify attribution before using cost or conversion results.")
         elif latest.get("downloads", "").strip() in {"", "0"} or latest.get("installs", "").strip() in {"", "0"}:
@@ -583,22 +768,93 @@ def performance_dashboard(data, *, example=False):
             if tracking_verified and all(comparison_key) and record.get("verification_status") in {"Verified", "Illustrative"}:
                 comparison_groups[comparison_key].append((creator, partnership, record, cpd, cpi))
     comparison_rows = []
-    for (window, attribution, definition, _currency), items in sorted(comparison_groups.items()):
+    comparison_panels = []
+    ordered_groups = sorted(comparison_groups.items(), key=lambda item: (WINDOW_ORDER[item[0][0]], item[0][1:]))
+    for (window, attribution, definition, currency), items in ordered_groups:
         if len({partnership["deliverable_id"] for _, partnership, _, _, _ in items}) < 2:
             continue
+        chart_items = []
         for creator, partnership, record, cpd, cpi in items:
             comparison_rows.append([
                 badge(window, "good"), fmt(creator["name"]), fmt(partnership["deliverable_id"]),
                 fmt(record["downloads"], "—"), fmt(record["installs"], "—"), cpd, cpi,
                 fmt(attribution), fmt(definition),
             ])
+            downloads = number(record.get("downloads", ""), "downloads", allow_blank=True)
+            installs = number(record.get("installs", ""), "installs", allow_blank=True)
+            conversion = installs / downloads * 100 if downloads not in {None, 0} and installs is not None else 0
+            if downloads in {None, 0} or installs is None:
+                detail = f"Conversion unavailable · CPD {cpd} · CPI {cpi}"
+            else:
+                detail = f"CPD {cpd} · CPI {cpi} · {installs:,.0f} installs from {downloads:,.0f} downloads"
+            chart_items.append((creator["name"], conversion, detail, CHART_COLORS[len(chart_items) % len(CHART_COLORS)]))
+        chart = horizontal_bars(
+            chart_items,
+            aria_label=f"{window} creator download to install conversion comparison",
+            empty_message="Conversion cannot be compared because recorded downloads are missing or zero.",
+            suffix="%",
+            scale_max=100,
+        )
+        comparison_panels.append(
+            f'<div class="chart-panel"><h3>{escape(window)} · {escape(currency)}</h3>{chart}'
+            f'<p class="chart-note">Like-for-like only: {escape(attribution)} · {escape(definition)}. Longer bars mean a higher download-to-install conversion; use the exact CPD and CPI labels to compare cost efficiency.</p></div>'
+        )
+
+    spend_values = []
+    currencies = set()
+    download_values = []
+    install_values = []
+    total_scopes = set()
+    totals_are_comparable = bool(latest_records)
+    for _, _, record, tracking_verified in latest_records:
+        spend = number(record.get("spend", ""), "spend", allow_blank=True)
+        downloads = number(record.get("downloads", ""), "downloads", allow_blank=True)
+        installs = number(record.get("installs", ""), "installs", allow_blank=True)
+        currency = record.get("currency", "").strip()
+        if spend is None or not currency:
+            totals_are_comparable = False
+        else:
+            spend_values.append(spend)
+            currencies.add(currency)
+        if downloads is None or installs is None:
+            totals_are_comparable = False
+        else:
+            download_values.append(downloads)
+            install_values.append(installs)
+        if not tracking_verified or record.get("verification_status") not in {"Verified", "Illustrative"}:
+            totals_are_comparable = False
+        scope = (
+            record.get("window", "").strip(), record.get("attribution_source", "").strip(),
+            record.get("metric_definition", "").strip(), currency,
+        )
+        if not all(scope):
+            totals_are_comparable = False
+        else:
+            total_scopes.add(scope)
+    if len(total_scopes) != 1:
+        totals_are_comparable = False
+    one_currency = len(currencies) == 1 and len(spend_values) == len(latest_records)
+    total_spend_label = f"{next(iter(currencies))} {sum(spend_values):,.0f}" if one_currency else "N/A"
+    total_downloads_label = f"{sum(download_values):,.0f}" if len(download_values) == len(latest_records) and latest_records else "N/A"
+    total_installs_label = f"{sum(install_values):,.0f}" if len(install_values) == len(latest_records) and latest_records else "N/A"
+    total_conversion = ratio(sum(install_values), sum(download_values)) if totals_are_comparable else "N/A"
+    kpis = "".join([
+        f'<section class="card quarter"><div class="label">Total recorded spend</div><div class="metric">{escape(total_spend_label)}</div><div class="muted">Latest snapshot per deliverable</div></section>',
+        f'<section class="card quarter"><div class="label">Total downloads</div><div class="metric">{escape(total_downloads_label)}</div><div class="muted">Latest snapshot per deliverable</div></section>',
+        f'<section class="card quarter"><div class="label">Total installs</div><div class="metric">{escape(total_installs_label)}</div><div class="muted">Latest snapshot per deliverable</div></section>',
+        f'<section class="card quarter"><div class="label">Download → install</div><div class="metric">{escape(total_conversion)}</div><div class="muted">Verified like-for-like totals only</div></section>',
+    ])
     content = "".join(published_cards) or '<div class="card wide empty">No published deliverable has a performance record yet. Confirming a collaboration is not publication, and missing metrics are not zero.</div>'
+    trend_content = "".join(trend_panels) or '<div class="empty">No eligible D7, D14 or D30 measurements yet, so no trend chart is shown.</div>'
+    comparison_content = "".join(comparison_panels) or '<div class="empty">Insufficient data for a like-for-like creator chart. Two or more deliverables must share the same window, attribution source, metric definition and currency.</div>'
     insight_items = "".join(f"<li>{escape(item)}</li>" for item in insights)
     if len(partnerships) < 2:
         insight_items += "<li>Insufficient data for a cross-creator recommendation; only one published deliverable is available.</li>"
     if not insight_items:
         insight_items = "<li>Insufficient data. Add a published deliverable and a verified measurement window.</li>"
-    body = f'''<div class="grid">{content}</div><section class="grid"><div class="card wide"><h2>Cumulative performance windows</h2>{table(['Creator','Deliverable','Window','Views','Clicks','Downloads','Installs','Activated','Spend','Cost / download','Cost / install','Click → download','Download → install','Install → activate','Evidence'], rows, 'No eligible D7, D14 or D30 measurements. Add evidence only after publication.')}</div></section>
+    body = f'''<div class="grid">{kpis}</div><section class="grid"><div class="card wide"><h2>Cumulative outcome trends</h2><p class="muted">Each line uses recorded cumulative snapshots for one published deliverable. D7, D14 and D30 are not added together.</p><div class="chart-stack">{trend_content}</div></div></section>
+<div class="grid">{content}</div><section class="grid"><div class="card wide"><h2>Creator efficiency comparison</h2><p class="muted">Shown only when two or more deliverables can be compared on the same measurement basis.</p><div class="chart-stack">{comparison_content}</div></div></section>
+<section class="grid"><div class="card wide"><h2>Cumulative performance windows</h2>{table(['Creator','Deliverable','Window','Views','Clicks','Downloads','Installs','Activated','Spend','Cost / download','Cost / install','Click → download','Download → install','Install → activate','Evidence'], rows, 'No eligible D7, D14 or D30 measurements. Add evidence only after publication.')}</div></section>
 <section class="grid"><div class="card wide"><h2>Comparable results</h2>{table(['Window','Creator','Deliverable','Downloads','Installs','Cost / download','Cost / install','Attribution','Metric definition'], comparison_rows, 'Insufficient data for a like-for-like comparison. Two or more deliverables must share the same window, attribution source, metric definition and currency.')}</div></section>
 <section class="grid"><div class="card half"><h2>Insights / Next Actions</h2><ul>{insight_items}</ul></div><div class="card half"><h2>How to read this</h2><p>D7, D14 and D30 are cumulative snapshots from each deliverable’s publication date. Do not add them together. Spend is the cumulative amount recorded for one deliverable and is repeated across windows for context, never summed. Cost metrics are N/A when spend, outcome, attribution scope or tracking verification is missing.</p></div><div class="card wide"><h2>Decision limits</h2><p>Compare formats and creators only when the observation window, attribution source, metric definition and currency match. Small samples and incomplete attribution support hypotheses, not guaranteed growth claims.</p></div></section>
 <p class="muted">Source files: <span class="path">{source_label}/outreach-progress.csv</span> and <span class="path">{source_label}/performance.csv</span>. Partnership records live in the consolidated progress table. The stored UTM URL is evidence of link design, not by itself evidence that tracking worked.</p>'''

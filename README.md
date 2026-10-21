@@ -26,11 +26,11 @@ Then continue naturally:
 
 ## What you will see
 
-- `persona-dashboard.html` — the current creator profile, scoring basis and confirmation state.
-- `outreach-dashboard.html` — ranked candidates, contact states, negotiations, next actions and risks.
-- `performance-dashboard.html` — published collaborations with cumulative D7/D14/D30 evidence.
+- `persona-dashboard.html` — the current creator profile, confirmation state and six-dimension scoring-weight chart.
+- `outreach-dashboard.html` — ranked candidates, contact states, tier distribution, negotiations, next actions and risks.
+- `performance-dashboard.html` — latest-snapshot KPIs, cumulative D7/D14/D30 trends and like-for-like creator comparisons.
 
-Each page prints the relevant source-file paths. Links are convenient but are not the only way to navigate in Desktop preview.
+Each page prints the relevant source-file paths. Links are convenient but are not the only way to navigate in Desktop preview. Charts are generated from the same local configuration and CSV records as the tables, use no external assets or CDN, and show an Empty State instead of invented values when the required data is absent.
 
 ## Three data tables
 
@@ -74,11 +74,18 @@ Before entering real creator or commercial information, make a working copy of t
 
 ```sh
 python3 04-tools/check_public_release.py
-git status --short -- workspace persona-dashboard.html outreach-dashboard.html performance-dashboard.html
-git diff -- workspace persona-dashboard.html outreach-dashboard.html performance-dashboard.html
+git status --short -- 01-workspace persona-dashboard.html outreach-dashboard.html performance-dashboard.html
+git diff -- 01-workspace persona-dashboard.html outreach-dashboard.html performance-dashboard.html
 ```
 
 Review every listed change. The release check blocks non-empty tracked workspace tables, collaboration/draft files, stale root dashboards, non-reserved Example contact domains and common sensitive-data patterns across public Markdown, CSV, HTML and JSON files. In an exported ZIP without Git metadata, it reports the Git check as skipped instead of claiming a clean repository. It complements—not replaces—human review of the complete staged diff.
+
+## Two validation modes
+
+- **User Workspace Mode** is the normal workflow. `python3 04-tools/validate_workspace.py` accepts a confirmed Persona and populated tables, and checks data integrity without deleting or resetting anything.
+- **Template Release Mode** is only for maintainers preparing the blank public repository. `python3 04-tools/check_public_release.py` intentionally blocks confirmed Personas, business rows, drafts, collaboration material, and stale dashboards.
+
+Agents must not run Template Release Mode after each user update. Automated release tests create their own clean temporary fixture, so the test suite can run without assuming that the user's `01-workspace/` is blank. If this working folder still points to GitHub or GitLab, treat all real creator contacts, prices, messages, and results as at risk of accidental publication until the work is moved to a private copy.
 
 ## Maintainer checks
 
@@ -88,9 +95,10 @@ End users do not need to run scripts. Maintainers and capable Agents rebuild and
 python3 04-tools/build_dashboards.py
 python3 04-tools/build_dashboards.py --source 02-examples/sample-creator-campaign --output 02-examples/sample-creator-campaign --example
 python3 04-tools/validate_workspace.py
-python3 04-tools/check_public_release.py
 python3 -m unittest discover -s 05-tests
 ```
+
+Run `python3 04-tools/check_public_release.py` separately only when preparing a clean public template release.
 
 The scripts use only the Python standard library. They do not scrape platforms, send messages, schedule reminders, connect analytics, sign contracts or make payments.
 

@@ -7,7 +7,7 @@ These rules apply to the entire project. Explicit user instructions take precede
 1. Read this file, `PLAYBOOK.md`, `01-workspace/persona.md`, the three workspace CSV files, relevant creator drafts/materials, and the latest generated dashboards.
 2. Treat project files as the durable handoff. Do not rely on prior chat memory.
 3. State which requested capability is unavailable—web research, authenticated platform access, attachment reading, file writing, script execution, email/DM delivery or analytics—and offer the smallest useful fallback.
-4. After an authorized data change, rebuild the three dashboards and run validation when execution is available. If not, update the source files accurately and tell the user what remains stale.
+4. After an authorized data change, rebuild the three dashboards and run `python3 04-tools/validate_workspace.py` when execution is available. This is User Workspace Mode: it preserves confirmed Personas and business records. Do not run the public-release checker during normal work. If validation cannot run, update the source files accurately and tell the user what remains stale.
 
 ## Evidence and truth
 
@@ -58,4 +58,6 @@ These rules apply to the entire project. Explicit user instructions take precede
 - Use reserved `example.com` URLs and clearly fictional identities in examples.
 - Keep exactly three main dashboards: persona, outreach and performance.
 - Preserve the six scoring dimensions and configured thresholds unless the user explicitly changes them. Re-run tests after any scoring change.
-- Before release, run `python3 -m unittest discover -s 05-tests`, both dashboard builds, `python3 04-tools/validate_workspace.py`, `python3 04-tools/check_public_release.py`, a stale/private-name search, and `git diff --check`.
+- `04-tools/check_public_release.py` is Template Release Mode. Run it only when a maintainer explicitly asks to prepare or verify a clean public template release. It is expected to block a real user workspace.
+- Never clear CSV rows, delete business records, remove attachments, or revert a confirmed Persona to satisfy a release check. Prepare releases from a separate clean checkout or disposable copy.
+- Before release, run `python3 -m unittest discover -s 05-tests`, both dashboard builds, `python3 04-tools/validate_workspace.py`, `python3 04-tools/check_public_release.py`, a stale/private-name search, and `git diff --check` in that clean release copy.

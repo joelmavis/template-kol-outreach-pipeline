@@ -60,3 +60,9 @@ Any active stage → Paused / Opted out / Closed Lost
 ```
 
 No transition is automatic. Preserve the supporting event or source for every external-world status change.
+
+## Validation modes
+
+During normal use, rebuild the dashboards and run `python3 04-tools/validate_workspace.py`. This checks schema, scoring, IDs, relationships, UTM attribution, cumulative metrics, and evidence rules while allowing a confirmed Persona and populated business tables.
+
+`python3 04-tools/check_public_release.py` is not a daily workflow step. It is reserved for maintainers preparing a blank public template in a separate clean checkout or disposable copy. A failure from that command must never be “fixed” by deleting user records or reverting a confirmed Persona. If the working folder still has a GitHub or GitLab remote, warn the user that real contacts, pricing, messages, and generated dashboards may be committed accidentally.

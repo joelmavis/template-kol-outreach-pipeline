@@ -44,8 +44,72 @@ class PipelineTests(unittest.TestCase):
     def temp_public_copy(self):
         holder = tempfile.TemporaryDirectory()
         target = Path(holder.name) / "release"
-        shutil.copytree(ROOT, target, ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"))
+        target.mkdir()
+        workspace = target / "01-workspace"
+        workspace.mkdir()
+        (workspace / "drafts").mkdir()
+        (workspace / "collaborations").mkdir()
+        (workspace / "drafts/.gitkeep").touch()
+        (workspace / "collaborations/.gitkeep").touch()
+        for filename in pipeline.FILES.values():
+            source = ROOT / "01-workspace" / filename
+            with source.open(encoding="utf-8", newline="") as stream:
+                fields = next(csv.reader(stream))
+            with (workspace / filename).open("w", encoding="utf-8", newline="") as stream:
+                csv.writer(stream).writerow(fields)
+        (workspace / "persona.md").write_text(
+            "# Creator Persona\n\n"
+            "- Status: Needs confirmation\n- Version: 0.1\n- Confirmed at:\n"
+            "- Product / industry:\n- Target audience / market:\n- Priority platforms:\n"
+            "- Content types:\n- Partnership goal:\n- Preferred languages / regions:\n"
+            "- Audience size preference:\n- Preferred collaboration formats:\n"
+            "- Exclusions / brand-safety rules:\n- Budget guidance:\n- Sources:\n"
+            "- Assumptions:\n- Open questions:\n\n## Scoring notes\n\n"
+            "The default model prioritizes evidence-backed fit.\n",
+            encoding="utf-8",
+        )
+        shutil.copytree(ROOT / "02-examples", target / "02-examples")
+        (target / "README.md").write_text("# Public release fixture\n", encoding="utf-8")
+        _, data = pipeline.load_workspace(workspace)
+        (target / "persona-dashboard.html").write_text(pipeline.persona_dashboard(workspace), encoding="utf-8")
+        (target / "outreach-dashboard.html").write_text(pipeline.outreach_dashboard(data, workspace), encoding="utf-8")
+        (target / "performance-dashboard.html").write_text(pipeline.performance_dashboard(data), encoding="utf-8")
         return holder, target
+
+    def temp_user_workspace(self):
+        holder = tempfile.TemporaryDirectory()
+        target = Path(holder.name) / "workspace"
+        shutil.copytree(ROOT / "01-workspace", target)
+        self.populate_user_workspace(target)
+        return holder, target
+
+    def populate_user_workspace(self, target):
+        persona = (target / "persona.md").read_text(encoding="utf-8")
+        persona = persona.replace("- Status: Needs confirmation", "- Status: Confirmed")
+        persona = persona.replace("- Confirmed at:", "- Confirmed at: 2026-10-21T14:00:00+08:00")
+        persona = persona.replace("- Product / industry:", "- Product / industry: Workflow software")
+        persona = persona.replace("- Target audience / market:", "- Target audience / market: Product teams")
+        (target / "persona.md").write_text(persona, encoding="utf-8")
+        base = dict(self.creators[0])
+        creators = []
+        for number in range(1, 11):
+            row = dict(base)
+            creator_id = f"C-UAT-{number:03d}"
+            row.update(
+                creator_id=creator_id,
+                name=f"Fixture Creator {number}",
+                handle=f"fixture-{number}",
+                profile_url=f"https://example.com/creators/{number}",
+                representative_content_url=f"https://example.com/content/{number}",
+                public_business_email=f"creator{number}@example.com",
+                business_email_source=f"https://example.com/contact/{number}",
+                dm_url=f"https://example.com/dm/{number}",
+                contact_page_url=f"https://example.com/contact/{number}",
+                evidence_url=f"https://example.com/evidence/{number}",
+                rank=str(number),
+            )
+            creators.append(row)
+        self.write_rows(target / "creators.csv", creators)
 
     def write_rows(self, path, rows):
         with path.open(encoding="utf-8", newline="") as stream:
@@ -431,6 +495,107 @@ class PipelineTests(unittest.TestCase):
         expected = {"01-workspace", "02-examples", "03-config", "04-tools", "05-tests"}
         self.assertTrue(all((ROOT / name).is_dir() for name in expected))
         self.assertFalse(any((ROOT / name).exists() for name in {"workspace", "example", "scripts", "tests", "01-kol-profile-and-scoring"}))
+
+    def test_42_confirmed_persona_and_ten_creators_pass_user_workspace_mode(self):
+        holder, source = self.temp_user_workspace()
+        self.addCleanup(holder.cleanup)
+        _, data = pipeline.load_workspace(source)
+        _, persona = pipeline.parse_persona(source / "persona.md")
+        self.assertEqual(persona["Status"], "Confirmed")
+        self.assertEqual(len(data["creators"]), 10)
+        output = Path(holder.name) / "dashboards"
+        pipeline.build(source, output)
+        self.assertEqual(
+            {path.name for path in output.glob("*.html")},
+            {"persona-dashboard.html", "outreach-dashboard.html", "performance-dashboard.html"},
+        )
+        result = subprocess.run([
+            sys.executable, str(ROOT / "04-tools/validate_workspace.py"), "--source", str(source),
+        ], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("10 creators", result.stdout)
+
+    def test_43_release_mode_blocks_user_data_without_deleting_it(self):
+        holder, target = self.temp_public_copy()
+        self.addCleanup(holder.cleanup)
+        workspace = target / "01-workspace"
+        self.populate_user_workspace(workspace)
+        result = subprocess.run([
+            sys.executable, str(ROOT / "04-tools/check_public_release.py"), "--root", str(target),
+        ], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Public workspace must be blank", result.stderr)
+        self.assertEqual(len(read_rows(workspace / "creators.csv")), 10)
+        _, persona = pipeline.parse_persona(workspace / "persona.md")
+        self.assertEqual(persona["Status"], "Confirmed")
+
+    def test_44_persona_dashboard_visualizes_configured_weights(self):
+        html = pipeline.persona_dashboard(EXAMPLE, example=True)
+        self.assertIn('aria-label="Six creator scoring dimensions and their configured weights"', html)
+        self.assertIn("Audience fit", html)
+        self.assertIn("30%", html)
+        self.assertIn("Collaboration readiness", html)
+        self.assertIn("03-config/scoring-config.json", html)
+
+    def test_45_outreach_charts_use_creator_and_progress_rows(self):
+        _, data = pipeline.load_workspace(EXAMPLE)
+        html = pipeline.outreach_dashboard(data, EXAMPLE, example=True)
+        self.assertIn('aria-label="Creator outreach status distribution"', html)
+        self.assertIn("<b>Pending</b><small>3 · 60% of total</small>", html)
+        self.assertIn("<b>Negotiating</b><small>1 · 20% of total</small>", html)
+        self.assertIn('aria-label="A B C D creator tier distribution"', html)
+        self.assertIn("Tier A", html)
+        self.assertIn("Unscored creators: 1", html)
+
+    def test_46_performance_kpis_and_trend_use_latest_snapshot_only(self):
+        _, data = pipeline.load_workspace(EXAMPLE)
+        html = pipeline.performance_dashboard(data, example=True)
+        self.assertIn("Total recorded spend", html)
+        self.assertIn("USD 1,800", html)
+        self.assertNotIn("USD 5,400", html)
+        self.assertIn("Total downloads", html)
+        self.assertIn(">301<", html)
+        self.assertIn("Total installs", html)
+        self.assertIn(">198<", html)
+        self.assertIn(">65.8%<", html)
+        self.assertIn('aria-label="Quiet Metrics Studio cumulative performance by measurement window"', html)
+        self.assertIn("D7 181 · D14 236 · D30 301", html)
+
+    def test_47_empty_workspace_uses_chart_empty_states(self):
+        _, data = pipeline.load_workspace(ROOT / "01-workspace")
+        outreach = pipeline.outreach_dashboard(data, ROOT / "01-workspace")
+        performance = pipeline.performance_dashboard(data)
+        self.assertNotIn("<svg", outreach)
+        self.assertIn("No eligible records yet, so no distribution is shown", outreach)
+        self.assertIn("No evidence-ready creators have a score yet", outreach)
+        self.assertNotIn("<svg", performance)
+        self.assertIn("no trend chart is shown", performance)
+        self.assertIn("Insufficient data for a like-for-like creator chart", performance)
+
+    def test_48_comparison_chart_requires_like_for_like_records(self):
+        _, data = pipeline.load_workspace(EXAMPLE)
+        data = copy.deepcopy(data)
+        partnership = dict(data["partnerships"][1])
+        partnership.update(collaboration_id="COL-EX-ALT", deliverable_id="DEL-EX-ALT", creator_id="C-EX-001", offer_id="")
+        data["partnerships"].append(partnership)
+        record = dict(data["performance"][1])
+        record.update(collaboration_id="COL-EX-ALT", deliverable_id="DEL-EX-ALT", creator_id="C-EX-001")
+        data["performance"].append(record)
+        html = pipeline.performance_dashboard(data, example=True)
+        self.assertIn('aria-label="D14 creator download to install conversion comparison"', html)
+        self.assertIn("CPD USD 7.63 · CPI USD 11.39", html)
+
+    def test_49_total_conversion_requires_matching_latest_scopes(self):
+        _, data = pipeline.load_workspace(EXAMPLE)
+        data = copy.deepcopy(data)
+        partnership = dict(data["partnerships"][1])
+        partnership.update(collaboration_id="COL-EX-ALT", deliverable_id="DEL-EX-ALT", creator_id="C-EX-001", offer_id="")
+        data["partnerships"].append(partnership)
+        record = dict(data["performance"][1])
+        record.update(collaboration_id="COL-EX-ALT", deliverable_id="DEL-EX-ALT", creator_id="C-EX-001")
+        data["performance"].append(record)
+        html = pipeline.performance_dashboard(data, example=True)
+        self.assertIn('Download → install</div><div class="metric">N/A</div>', html)
 
 
 if __name__ == "__main__":

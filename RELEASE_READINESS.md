@@ -64,8 +64,16 @@ Not verified: puppyone Desktop-specific HTML preview, a live eight-step campaign
 - UTM attribution: passed; Performance campaign and optional creator attribution must match the corresponding published partnership. Legitimate cross-campaign work uses a separate collaboration and deliverable.
 - Cumulative spend: passed; unexplained decreases are blocked, documented refunds/corrections are accepted, and CPD/CPI use the adjusted cumulative amount.
 - Public release boundary: passed; public Markdown, CSV, HTML and JSON files are scanned for common sensitive-data patterns. A non-Git release copy reports `Skipped — Not a Git Repository`.
-- Automated tests: 41/41 passed, including ordered directories, the three-table structure and existing negative/exception-path cases.
+- Automated tests: 43/43 passed, including ordered directories, the three-table structure, independent release fixtures, a confirmed-Persona/10-creator user workflow, and existing negative/exception-path cases.
 - Data/build checks: blank workspace and five-creator fictional Example passed; all three root dashboards and all three Example dashboards were regenerated.
 - Structure: the eight-step workflow, three dashboard types and six scoring dimensions remain unchanged. The Workspace and Example data layer is intentionally consolidated from seven CSV files to exactly three tables.
 
 Still requires manual testing in puppyone Desktop: open all three dashboards through the client preview; confirm relative/local navigation behavior; run one eight-step handoff across different Agents with attachments; confirm permission prompts before real email/DM delivery; and verify a real analytics import against the platform source. No live outreach, delivery or real commercial data was used in this verification.
+
+## Dashboard visualization update — 2026-10-21
+
+- Automated tests: 49/49 passed, including CSV/config-driven chart values, blank-data Empty States, latest-snapshot KPI totals and like-for-like comparison gating.
+- Dashboard builds: all three blank Workspace dashboards and all three fictional Example dashboards regenerated successfully.
+- Browser review: desktop and 600 px-wide layouts passed; chart labels, units, tables and explanatory copy remain readable without external libraries.
+- Release boundary: the eight-step workflow, three data tables, three dashboard files and six-dimension scoring model are unchanged.
+- Recommendation: ready for the existing release path, subject to the previously listed puppyone Desktop and live-integration checks.
