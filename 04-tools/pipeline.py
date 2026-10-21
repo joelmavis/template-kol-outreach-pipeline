@@ -18,6 +18,10 @@ DIMENSIONS = (
     "audience_fit", "content_relevance", "engagement_quality",
     "audience_size_band", "brand_safety", "collaboration_readiness",
 )
+CREATOR_VERIFICATION_STATES = {"Verified", "Partial", "Pending Verification"}
+SYSTEM_MISSING_EVIDENCE = {
+    "Evidence URL", "Evidence checked date", "Public business email source", "Follower metric source",
+}
 FILES = {
     "creators": "creators.csv",
     "progress": "outreach-progress.csv",
@@ -113,6 +117,40 @@ def write_csv(path, fields, rows):
         writer.writerows(rows)
 
 
+def merge_creator_batch(existing_rows, batch_rows, fields):
+    """Merge one discovery batch without erasing previously collected creator evidence."""
+    merged = [{field: row.get(field, "") for field in fields} for row in existing_rows]
+    by_id = {row.get("creator_id", "").strip().casefold(): row for row in merged if row.get("creator_id", "").strip()}
+    by_url = {normalized_profile_url(row.get("profile_url", "")): row for row in merged if normalized_profile_url(row.get("profile_url", ""))}
+    for incoming_raw in batch_rows:
+        incoming = {field: incoming_raw.get(field, "") for field in fields}
+        creator_id = incoming.get("creator_id", "").strip()
+        profile_key = normalized_profile_url(incoming.get("profile_url", ""))
+        if not creator_id:
+            raise ValueError("Creator batch row requires creator_id")
+        if not profile_key:
+            raise ValueError(f"{creator_id}: creator batch row requires a valid HTTP(S) YouTube channel URL")
+        id_match = by_id.get(creator_id.casefold())
+        url_match = by_url.get(profile_key)
+        if id_match is not None and url_match is not None and id_match is not url_match:
+            raise ValueError(f"{creator_id}: creator_id and channel URL match different existing rows")
+        target = id_match or url_match
+        if target is None:
+            target = {field: "" for field in fields}
+            target.update(incoming)
+            merged.append(target)
+        else:
+            for field, value in incoming.items():
+                value = str(value or "").strip()
+                if field == "creator_id" and url_match is target:
+                    continue
+                if value and value.casefold() not in {"unknown", "n/a", "not available"}:
+                    target[field] = value
+        by_id[target["creator_id"].strip().casefold()] = target
+        by_url[normalized_profile_url(target.get("profile_url", ""))] = target
+    return merged
+
+
 def split_progress(rows):
     """Expose one consolidated progress table through the existing validated workflow model."""
     unique_id(rows, "record_id", "outreach-progress record_id") if rows else None
@@ -193,6 +231,16 @@ def add_missing(row, message):
     row["missing_evidence"] = "; ".join(existing)
 
 
+def normalized_profile_url(value):
+    """Normalize a public channel URL enough to detect repeat rows across discovery batches."""
+    raw = str(value or "").strip()
+    parsed = urlparse(raw)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return ""
+    path = parsed.path.rstrip("/") or "/"
+    return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}{path}".casefold()
+
+
 def score_creators(rows, config):
     unique_id(rows, "creator_id", "creator_id")
     identities = set()
@@ -201,16 +249,27 @@ def score_creators(rows, config):
     scale = float(config["scale_max"])
     for original in rows:
         row = dict(original)
-        identity_value = row.get("profile_url", "").strip() or row.get("handle", "").strip()
-        identity = (row.get("platform", "").strip().casefold(), identity_value.casefold())
-        if not all(identity) or identity in identities:
-            raise ValueError(f"Duplicate or incomplete platform/profile identity for {row['creator_id']}")
+        identity = normalized_profile_url(row.get("profile_url", ""))
+        if not identity:
+            raise ValueError(f"{row['creator_id']}: a valid HTTP(S) YouTube channel URL is required")
+        if identity in identities:
+            raise ValueError(f"Duplicate YouTube channel URL for {row['creator_id']}")
         identities.add(identity)
         checked_at = valid_date(row.get("checked_at", ""), f"{row['creator_id']} checked_at")
         status = row.get("verification_status", "").strip()
+        status = {"Needs verification": "Pending Verification", "Pending": "Pending Verification", "": "Pending Verification"}.get(status, status)
+        if status not in CREATOR_VERIFICATION_STATES:
+            raise ValueError(f"{row['creator_id']}: invalid verification_status {status}")
+        row["verification_status"] = status
+        existing_missing = [
+            item.strip() for item in row.get("missing_evidence", "").split(";")
+            if item.strip() and item.strip() not in SYSTEM_MISSING_EVIDENCE and not item.strip().startswith("Scoring ratings:")
+        ]
+        row["missing_evidence"] = "; ".join(existing_missing)
         ratings = [row.get(key, "").strip() for key in DIMENSIONS]
         evidence_url = row.get("evidence_url", "").strip()
-        evidence_ready = bool(re.match(r"^https?://", evidence_url)) and checked_at is not None
+        basic_evidence_ready = bool(re.match(r"^https?://", evidence_url)) and checked_at is not None
+        evidence_ready = basic_evidence_ready
         if row.get("public_business_email", "").strip() and not row.get("business_email_source", "").strip():
             evidence_ready = False
             add_missing(row, "Public business email source")
@@ -221,9 +280,16 @@ def score_creators(rows, config):
             add_missing(row, "Evidence URL")
         if checked_at is None:
             add_missing(row, "Evidence checked date")
-        if status != "Verified" or not all(ratings) or not evidence_ready:
-            if status == "Verified" and not evidence_ready:
-                row["verification_status"] = "Needs verification"
+        missing_ratings = [DIMENSION_LABELS.get(key, key.replace("_", " ")) for key, value in zip(DIMENSIONS, ratings) if not value]
+        if missing_ratings:
+            add_missing(row, "Scoring ratings: " + ", ".join(missing_ratings))
+        if status == "Verified" and (not all(ratings) or not evidence_ready):
+            row["verification_status"] = "Partial" if evidence_url and checked_at is not None else "Pending Verification"
+            status = row["verification_status"]
+        elif status == "Partial" and not basic_evidence_ready:
+            row["verification_status"] = "Pending Verification"
+            status = row["verification_status"]
+        if status == "Pending Verification" or not all(ratings) or not evidence_ready:
             row.update(score="", tier="Unscored", rank="")
             scored.append(row)
             continue
@@ -404,16 +470,6 @@ def load_workspace(source, *, write_scores=False):
     return fields, data
 
 
-def parse_persona(path):
-    text = path.read_text(encoding="utf-8")
-    values = {}
-    for line in text.splitlines():
-        match = re.match(r"^- ([^:]+):\s*(.*)$", line)
-        if match:
-            values[match.group(1).strip()] = match.group(2).strip()
-    return text, values
-
-
 def fmt(value, empty="Not recorded"):
     return escape(str(value).strip()) if str(value).strip() else empty
 
@@ -557,39 +613,150 @@ def page(title, eyebrow, intro, body, *, example=False):
 </style></head><body><main><header><div class="eyebrow">{escape(eyebrow)}</div><h1>{escape(title)}</h1><p class="intro">{escape(intro)}</p>{note}</header>{body}<footer>{escape(footer)}</footer></main></body></html>'''
 
 
-def persona_dashboard(source, *, example=False):
-    _, values = parse_persona(Path(source) / "persona.md")
-    config = load_config()
+def audience_count(value):
+    """Return a public subscriber count when it is numeric; Unknown and blanks stay unknown."""
+    raw = str(value or "").strip().replace(",", "")
+    if not raw or raw.casefold() in {"unknown", "n/a", "not available"}:
+        return None
+    try:
+        result = float(raw)
+    except ValueError:
+        return None
+    return result if math.isfinite(result) and result >= 0 else None
+
+
+def creator_database_dashboard(data, source, *, example=False):
     source_label = "02-examples/sample-creator-campaign" if example else "01-workspace"
-    status = values.get("Status", "Needs confirmation")
-    tone = "good" if status == "Confirmed" else "warn"
-    items = [
-        ("Product / industry", values.get("Product / industry", "")),
-        ("Target audience / market", values.get("Target audience / market", "")),
-        ("Priority platforms", values.get("Priority platforms", "")),
-        ("Content types", values.get("Content types", "")),
-        ("Partnership goal", values.get("Partnership goal", "")),
-        ("Exclusions / brand-safety rules", values.get("Exclusions / brand-safety rules", "")),
-    ]
-    cards = "".join(f'<section class="card half"><h3>{escape(label)}</h3><p>{fmt(value)}</p></section>' for label, value in items)
-    weight_items = [
-        (DIMENSION_LABELS[key], value, CHART_COLORS[index])
-        for index, (key, value) in enumerate(config["dimensions"].items())
-    ]
-    weight_chart = donut_chart(
-        weight_items,
-        aria_label="Six creator scoring dimensions and their configured weights",
-        center_value="100%",
-        center_label="Scoring weight",
-        value_suffix="%",
+    creators = list(data["creators"])
+    config = load_config()
+    verified = sum(row.get("verification_status") == "Verified" for row in creators)
+    contactable = sum(
+        bool(row.get("public_business_email", "").strip() or row.get("dm_url", "").strip() or row.get("contact_page_url", "").strip())
+        and row.get("do_not_contact", "").strip().lower() != "true"
+        for row in creators
     )
-    body = f'''<div class="grid"><section class="card"><div class="label">Confirmation</div><div class="metric">{badge(status, tone)}</div><div class="muted">Version {fmt(values.get('Version',''))}</div></section>
-<section class="card"><div class="label">Confirmed at</div><div class="metric" style="font-size:20px">{fmt(values.get('Confirmed at',''))}</div></section>
-<section class="card"><div class="label">Source of truth</div><p><span class="path">{source_label}/persona.md</span></p></section>{cards}</div>
-<section class="grid"><div class="card wide"><h2>How candidates are weighted</h2><p class="muted">The six dimensions below determine the evidence-backed score. Higher weight means the criterion has more influence on the final tier.</p>{weight_chart}<p class="chart-note">Weights come from <span class="path">03-config/scoring-config.json</span>. A weight is not a creator result; each rating still requires recorded evidence.</p></div></section>
-<section class="grid"><div class="card half"><h2>Preferences</h2><p><b>Languages / regions:</b> {fmt(values.get('Preferred languages / regions',''))}</p><p><b>Audience size:</b> {fmt(values.get('Audience size preference',''))}</p><p><b>Formats:</b> {fmt(values.get('Preferred collaboration formats',''))}</p><p><b>Budget:</b> {fmt(values.get('Budget guidance',''))}</p></div><div class="card half"><h2>Evidence and open items</h2><p><b>Sources:</b> {fmt(values.get('Sources',''))}</p><p><b>Assumptions:</b> {fmt(values.get('Assumptions',''))}</p><p><b>Open questions:</b> {fmt(values.get('Open questions',''))}</p></div></section>
-<p class="muted">Confirm this persona before broad discovery. If it changes, update the version and rescore candidates from evidence. File path: <span class="path">{source_label}/persona.md</span>.</p>'''
-    return page("Creator persona", "Plan and confirm", "The shared definition of who fits, why they fit, and what must be excluded before discovery begins.", body, example=example)
+    needs_completion = sum(
+        row.get("verification_status") != "Verified" or not row.get("score", "").strip() or bool(row.get("missing_evidence", "").strip())
+        for row in creators
+    )
+    kpis = "".join([
+        f'<section class="card quarter"><div class="label">Creators</div><div class="metric">{len(creators)}</div><div class="muted">Saved channel records</div></section>',
+        f'<section class="card quarter"><div class="label">Verified</div><div class="metric">{verified}</div><div class="muted">Evidence-ready records</div></section>',
+        f'<section class="card quarter"><div class="label">Contactable</div><div class="metric">{contactable}</div><div class="muted">Public route recorded</div></section>',
+        f'<section class="card quarter"><div class="label">Needs completion</div><div class="metric">{needs_completion}</div><div class="muted">Safe to continue later</div></section>',
+    ])
+
+    tier_counts = Counter(row.get("tier", "") for row in creators)
+    tier_items = [
+        (f"Tier {tier}", tier_counts[tier], CHART_COLORS[index])
+        for index, tier in enumerate("ABCD") if tier_counts[tier]
+    ]
+    tier_chart = donut_chart(
+        tier_items,
+        aria_label="A B C D creator score tier distribution",
+        center_value=sum(tier_counts[tier] for tier in "ABCD"),
+        center_label="Scored creators",
+    )
+    unscored = sum(row.get("tier") in {"", "Unscored"} for row in creators)
+
+    subscriber_bands = Counter()
+    for row in creators:
+        count = audience_count(row.get("follower_count", ""))
+        if count is None:
+            subscriber_bands["Unknown"] += 1
+        elif count < 10_000:
+            subscriber_bands["Under 10K"] += 1
+        elif count < 50_000:
+            subscriber_bands["10K–49K"] += 1
+        elif count < 100_000:
+            subscriber_bands["50K–99K"] += 1
+        elif count < 500_000:
+            subscriber_bands["100K–499K"] += 1
+        else:
+            subscriber_bands["500K+"] += 1
+    band_order = ("Under 10K", "10K–49K", "50K–99K", "100K–499K", "500K+", "Unknown")
+    band_items = [
+        (label, subscriber_bands[label], f"{subscriber_bands[label]} creator records", CHART_COLORS[index % len(CHART_COLORS)])
+        for index, label in enumerate(band_order)
+    ]
+    subscriber_chart = horizontal_bars(
+        band_items,
+        aria_label="Creator subscriber count band distribution",
+        empty_message="No creator records yet, so no subscriber distribution is shown.",
+    )
+
+    priorities = {item["tier"]: item["priority"] for item in config["tiers"]}
+    ordered = sorted(creators, key=lambda row: (int(row["rank"]) if row.get("rank") else 9999, row["creator_id"]))
+    ranking_rows = []
+    recommendations = []
+    for row in ordered:
+        contact = row.get("public_business_email") or row.get("dm_url") or row.get("contact_page_url")
+        score = f"{fmt(row.get('score', ''), '—')} / {fmt(row.get('tier', 'Unscored'))}"
+        priority = priorities.get(row.get("tier", ""), "Research")
+        status = row.get("verification_status") or "Pending Verification"
+        tone = "good" if status == "Verified" else "warn"
+        missing = row.get("missing_evidence", "").strip() or "No recorded evidence gaps"
+        subscriber = audience_count(row.get("follower_count", ""))
+        subscriber_label = f"{subscriber:,.0f}" if subscriber is not None else "Unknown"
+        average_views = audience_count(row.get("average_views", ""))
+        signal_lines = [
+            f"Avg views: {average_views:,.0f}" if average_views is not None else "Avg views: Unknown",
+            f"Frequency: {fmt(row.get('upload_frequency', ''), 'Unknown')}",
+            f"Engagement: {fmt(row.get('engagement_indicators', ''), 'Unknown')}",
+        ]
+        evidence = (
+            f"{fmt(row.get('evidence_url', ''), 'Not recorded')}<br>"
+            f"<span class='muted'>Checked: {fmt(row.get('checked_at', ''), 'Not recorded')}</span>"
+        )
+        ranking_rows.append([
+            f"<b>{fmt(row.get('name', ''), 'Unknown channel')}</b><br><span class='muted'>{fmt(row.get('profile_url', ''))}</span>",
+            subscriber_label,
+            f"{fmt(row.get('language', ''), 'Unknown')}<br><span class='muted'>{fmt(row.get('country_region', ''), 'Unknown')}</span>",
+            fmt(row.get("content_category", ""), "Unknown"),
+            "<br>".join(signal_lines), badge(status, tone), evidence, score, f"{fmt(row.get('rank', ''), '—')} / {escape(priority)}",
+            fmt(contact, "Not recorded"), fmt(missing),
+        ])
+        if len(recommendations) < 6:
+            if status != "Verified" or not row.get("score"):
+                verification_gap = missing if missing != "No recorded evidence gaps" else f"verification status is {status}"
+                recommendations.append(f"{row.get('name') or row['creator_id']}: continue verification — {verification_gap}.")
+            elif row.get("tier") in {"A", "B"} and contact:
+                recommendations.append(f"{row.get('name') or row['creator_id']}: review the evidence and consider personalised outreach.")
+            elif not contact:
+                recommendations.append(f"{row.get('name') or row['creator_id']}: look for a public business contact route before outreach.")
+
+    completeness_specs = [
+        ("Subscriber count", lambda row: audience_count(row.get("follower_count", "")) is not None),
+        ("Language and country", lambda row: bool(row.get("language", "").strip() and row.get("country_region", "").strip())),
+        ("Content category", lambda row: bool(row.get("content_category", "").strip())),
+        ("Average views", lambda row: audience_count(row.get("average_views", "")) is not None),
+        ("Upload frequency", lambda row: bool(row.get("upload_frequency", "").strip())),
+        ("Engagement indicators", lambda row: bool(row.get("engagement_indicators", "").strip())),
+        ("Recent relevant video", lambda row: bool(row.get("representative_content_url", "").strip())),
+        ("Public business email", lambda row: bool(row.get("public_business_email", "").strip())),
+        ("Other contact method", lambda row: bool(row.get("dm_url", "").strip() or row.get("contact_page_url", "").strip())),
+        ("Fit and product relevance", lambda row: bool(row.get("fit_rationale", "").strip() and row.get("potential_collaboration", "").strip())),
+        ("Evidence-backed score", lambda row: bool(row.get("score", "").strip())),
+    ]
+    completeness_rows = []
+    for label, predicate in completeness_specs:
+        complete = sum(bool(predicate(row)) for row in creators)
+        missing = len(creators) - complete
+        rate = complete / len(creators) * 100 if creators else 0
+        completeness_rows.append([escape(label), str(complete), str(missing), f"{rate:.0f}%"])
+    completeness_content = table(
+        ['Field group', 'Complete', 'Missing', 'Coverage'], completeness_rows, 'No creator records yet.'
+    ) if creators else '<div class="empty">No creator records yet. Completeness appears after the first saved batch.</div>'
+    recommendation_list = "".join(f"<li>{escape(item)}</li>" for item in recommendations)
+    if not recommendation_list:
+        recommendation_list = "<li>Add channel URLs or import a creator list to begin. Partial records can be saved and completed in later batches.</li>"
+
+    body = f'''<div class="grid">{kpis}</div>
+<section class="grid"><div class="card half"><h2>Score tiers</h2><p class="muted">Only evidence-supported six-dimension scores appear in A–D.</p>{tier_chart}<p class="chart-note">Unscored creators: {unscored}. Missing rating evidence is never treated as zero.</p></div><div class="card half"><h2>Subscriber bands</h2><p class="muted">Public subscriber counts grouped for quick database coverage review.</p>{subscriber_chart}</div></section>
+<section class="grid"><div class="card wide"><h2>Creator ranking</h2>{table(['Channel','Subscribers','Language / country','Category','Public signals','Verification','Source / checked','Score / tier','Rank / priority','Public contact','Missing or unresolved'], ranking_rows, 'No creators yet. Provide a product brief, a YouTube channel URL, a list or a CSV; the Agent can save the first usable batch immediately.')}</div></section>
+<section class="grid"><div class="card half"><h2>Data completeness</h2>{completeness_content}</div><div class="card half"><h2>Recommended next actions</h2><ul>{recommendation_list}</ul><p class="chart-note">Discovery may continue in batches. Rebuild this page after each saved batch to update the counts and priorities.</p></div></section>
+<p class="muted">Source of truth: <span class="path">{source_label}/creators.csv</span>. Public information can be incomplete; blank or Unknown means not yet available, while 0 means a verified zero.</p>'''
+    return page("Creator database", "Discover, verify, continue", "A durable YouTube creator database that can start with channel links, save partial progress and become more complete over time.", body, example=example)
 
 
 def outreach_dashboard(data, source, *, example=False):
@@ -664,7 +831,7 @@ def outreach_dashboard(data, source, *, example=False):
         amount = row.get("negotiated_amount") or row.get("original_amount")
         offer_rows.append([fmt(row["offer_id"]), fmt(row["creator_id"]), fmt(row["collaboration_type"]), f"{fmt(row['currency'], '')} {fmt(amount, 'Not recorded')}", fmt(row["payment_terms"]), badge(row["status"], "warn" if row["status"] == "Under review" else "good")])
     body = f'''<div class="grid">{metrics}</div><section class="grid"><div class="card half"><h2>Outreach status</h2><p class="muted">Each creator appears once at their current furthest recorded stage.</p>{stage_chart}</div><div class="card half"><h2>Score tiers</h2><p class="muted">Evidence-ready creators grouped by the configured A–D thresholds.</p>{tier_chart}<p class="chart-note">Unscored creators: {unscored_count}. They are excluded from the A–D bars until the required evidence is complete.</p></div></section>
-<section class="grid"><div class="card wide"><h2>Candidate priority and current state</h2>{table(['ID','Creator','Score / tier','Evidence','Current state','Next action or gap'], candidate_rows, 'No creators yet. Confirm the persona, then ask the Agent to discover a specific number with verifiable evidence.')}</div></section>
+<section class="grid"><div class="card wide"><h2>Candidate priority and current state</h2>{table(['ID','Creator','Score / tier','Evidence','Current state','Next action or gap'], candidate_rows, 'No creators yet. Provide a product brief, channel links or a creator file, then save the first discovery batch.')}</div></section>
 <section class="grid"><div class="card wide"><h2>Latest recorded activity</h2>{table(['When','Creator','Event','What happened','Source'], event_rows, 'No actual contact events recorded. Drafts do not create activity.')}</div></section>
 <section class="grid"><div class="card wide"><h2>Offer versions</h2>{table(['Offer','Creator','Scope','Amount','Payment terms','Status'], offer_rows, 'No offers recorded. Keep each scope and payment option as a separate row.')}</div></section>
 <p class="muted">Source files: <span class="path">{source_label}/creators.csv</span> and <span class="path">{source_label}/outreach-progress.csv</span>. The consolidated progress table keeps outreach state, activity history, offers and partnerships as separate record types. A draft or score never means a message was sent.</p>'''
@@ -866,7 +1033,7 @@ def build(source, output, *, example=False):
     _, data = load_workspace(source, write_scores=True)
     output.mkdir(parents=True, exist_ok=True)
     rendered = {
-        "persona-dashboard.html": persona_dashboard(source, example=example),
+        "creator-database-dashboard.html": creator_database_dashboard(data, source, example=example),
         "outreach-dashboard.html": outreach_dashboard(data, source, example=example),
         "performance-dashboard.html": performance_dashboard(data, example=example),
     }

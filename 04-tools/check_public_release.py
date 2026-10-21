@@ -7,10 +7,10 @@ import subprocess
 import sys
 from urllib.parse import urlparse
 
-from pipeline import FILES, ROOT, load_workspace, outreach_dashboard, parse_persona, performance_dashboard, persona_dashboard, read_csv
+from pipeline import FILES, ROOT, creator_database_dashboard, load_workspace, outreach_dashboard, performance_dashboard, read_csv
 
 FORBIDDEN_MARKERS = ("youtube.com/" + "channel/", "@" + "gmail.com")
-PUBLIC_PATHS = ("01-workspace", "persona-dashboard.html", "outreach-dashboard.html", "performance-dashboard.html")
+PUBLIC_PATHS = ("01-workspace", "creator-database-dashboard.html", "outreach-dashboard.html", "performance-dashboard.html")
 PUBLIC_TEXT_EXTENSIONS = {".md", ".csv", ".html", ".json"}
 SENSITIVE_LABEL_RE = re.compile(r"\b(?:confidential|internal only|do not share)\b", re.IGNORECASE)
 SECRET_VALUE_RE = re.compile(
@@ -39,9 +39,8 @@ def check_blank_workspace(root):
         _, rows = read_csv(workspace / filename)
         if rows:
             fail(f"Public workspace must be blank: 01-workspace/{filename} has {len(rows)} row(s)")
-    _, persona = parse_persona(workspace / "persona.md")
-    if persona.get("Status") not in {"Draft", "Needs confirmation"}:
-        fail("Public workspace persona must be Draft or Needs confirmation")
+    if (workspace / "persona.md").exists() or (root / "persona-dashboard.html").exists():
+        fail("Legacy Persona files must not be included in the v2.2 public template")
     if any(workspace.glob("drafts/*.md")) or any(workspace.glob("collaborations/**/*.md")):
         fail("Public workspace contains drafts or collaboration material")
 
@@ -49,7 +48,7 @@ def check_blank_workspace(root):
 def check_root_dashboards(root):
     _, data = load_workspace(root / "01-workspace")
     expected = {
-        "persona-dashboard.html": persona_dashboard(root / "01-workspace"),
+        "creator-database-dashboard.html": creator_database_dashboard(data, root / "01-workspace"),
         "outreach-dashboard.html": outreach_dashboard(data, root / "01-workspace"),
         "performance-dashboard.html": performance_dashboard(data),
     }

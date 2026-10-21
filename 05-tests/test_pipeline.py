@@ -24,6 +24,8 @@ def read_rows(path):
 class PipelineTests(unittest.TestCase):
     def setUp(self):
         self.config = pipeline.load_config()
+        with (EXAMPLE / "creators.csv").open(encoding="utf-8", newline="") as stream:
+            self.creator_fields = next(csv.reader(stream))
         self.creators = read_rows(EXAMPLE / "creators.csv")
 
     def rated(self, rating):
@@ -57,21 +59,10 @@ class PipelineTests(unittest.TestCase):
                 fields = next(csv.reader(stream))
             with (workspace / filename).open("w", encoding="utf-8", newline="") as stream:
                 csv.writer(stream).writerow(fields)
-        (workspace / "persona.md").write_text(
-            "# Creator Persona\n\n"
-            "- Status: Needs confirmation\n- Version: 0.1\n- Confirmed at:\n"
-            "- Product / industry:\n- Target audience / market:\n- Priority platforms:\n"
-            "- Content types:\n- Partnership goal:\n- Preferred languages / regions:\n"
-            "- Audience size preference:\n- Preferred collaboration formats:\n"
-            "- Exclusions / brand-safety rules:\n- Budget guidance:\n- Sources:\n"
-            "- Assumptions:\n- Open questions:\n\n## Scoring notes\n\n"
-            "The default model prioritizes evidence-backed fit.\n",
-            encoding="utf-8",
-        )
         shutil.copytree(ROOT / "02-examples", target / "02-examples")
         (target / "README.md").write_text("# Public release fixture\n", encoding="utf-8")
         _, data = pipeline.load_workspace(workspace)
-        (target / "persona-dashboard.html").write_text(pipeline.persona_dashboard(workspace), encoding="utf-8")
+        (target / "creator-database-dashboard.html").write_text(pipeline.creator_database_dashboard(data, workspace), encoding="utf-8")
         (target / "outreach-dashboard.html").write_text(pipeline.outreach_dashboard(data, workspace), encoding="utf-8")
         (target / "performance-dashboard.html").write_text(pipeline.performance_dashboard(data), encoding="utf-8")
         return holder, target
@@ -84,12 +75,6 @@ class PipelineTests(unittest.TestCase):
         return holder, target
 
     def populate_user_workspace(self, target):
-        persona = (target / "persona.md").read_text(encoding="utf-8")
-        persona = persona.replace("- Status: Needs confirmation", "- Status: Confirmed")
-        persona = persona.replace("- Confirmed at:", "- Confirmed at: 2026-10-21T14:00:00+08:00")
-        persona = persona.replace("- Product / industry:", "- Product / industry: Workflow software")
-        persona = persona.replace("- Target audience / market:", "- Target audience / market: Product teams")
-        (target / "persona.md").write_text(persona, encoding="utf-8")
         base = dict(self.creators[0])
         creators = []
         for number in range(1, 11):
@@ -110,6 +95,19 @@ class PipelineTests(unittest.TestCase):
             )
             creators.append(row)
         self.write_rows(target / "creators.csv", creators)
+
+    def minimal_creator(self, number, *, status="Pending Verification"):
+        row = {field: "" for field in self.creator_fields}
+        row.update(
+            creator_id=f"C-BATCH-{number:03d}",
+            name=f"Batch Channel {number}",
+            platform="YouTube",
+            profile_url=f"https://example.com/youtube/channel-{number}",
+            evidence_url=f"https://example.com/youtube/channel-{number}",
+            verification_status=status,
+            do_not_contact="false",
+        )
+        return row
 
     def write_rows(self, path, rows):
         with path.open(encoding="utf-8", newline="") as stream:
@@ -143,7 +141,7 @@ class PipelineTests(unittest.TestCase):
 
     def test_03_incomplete_evidence_remains_unscored(self):
         row = self.rated(5)
-        row["verification_status"] = "Needs verification"
+        row["verification_status"] = "Partial"
         row["engagement_quality"] = ""
         result = pipeline.score_creators([row], self.config)[0]
         self.assertEqual((result["score"], result["tier"], result["rank"]), ("", "Unscored", ""))
@@ -180,7 +178,7 @@ class PipelineTests(unittest.TestCase):
         self.addCleanup(holder.cleanup)
         output = Path(holder.name) / "out"
         rendered = pipeline.build(source, output, example=True)
-        self.assertEqual(set(rendered), {"persona-dashboard.html", "outreach-dashboard.html", "performance-dashboard.html"})
+        self.assertEqual(set(rendered), {"creator-database-dashboard.html", "outreach-dashboard.html", "performance-dashboard.html"})
         self.assertEqual({p.name for p in output.glob("*.html")}, set(rendered))
 
     def test_08_drafts_do_not_create_outreach_or_events(self):
@@ -248,9 +246,10 @@ class PipelineTests(unittest.TestCase):
         self.assertNotIn("Workflow Weekly", performance)
 
     def test_15_example_marking_and_paths_are_visible(self):
-        html = pipeline.persona_dashboard(EXAMPLE, example=True)
+        _, data = pipeline.load_workspace(EXAMPLE)
+        html = pipeline.creator_database_dashboard(data, EXAMPLE, example=True)
         self.assertIn("Example · Illustrative data and fictional creators", html)
-        self.assertIn("02-examples/sample-creator-campaign/persona.md", html)
+        self.assertIn("02-examples/sample-creator-campaign/creators.csv", html)
 
     def test_16_cli_runs_from_another_directory(self):
         holder, source = self.temp_example()
@@ -331,7 +330,7 @@ class PipelineTests(unittest.TestCase):
         row["evidence_url"] = ""
         result = pipeline.score_creators([row], self.config)[0]
         self.assertEqual((result["score"], result["tier"], result["rank"]), ("", "Unscored", ""))
-        self.assertEqual(result["verification_status"], "Needs verification")
+        self.assertEqual(result["verification_status"], "Pending Verification")
         self.assertIn("Evidence URL", result["missing_evidence"])
 
     def test_25_verified_without_checked_at_is_unscored(self):
@@ -339,7 +338,7 @@ class PipelineTests(unittest.TestCase):
         row["checked_at"] = ""
         result = pipeline.score_creators([row], self.config)[0]
         self.assertEqual((result["score"], result["tier"], result["rank"]), ("", "Unscored", ""))
-        self.assertEqual(result["verification_status"], "Needs verification")
+        self.assertEqual(result["verification_status"], "Pending Verification")
         self.assertIn("Evidence checked date", result["missing_evidence"])
 
     def test_26_unverified_contact_or_metric_source_blocks_scoring(self):
@@ -496,18 +495,16 @@ class PipelineTests(unittest.TestCase):
         self.assertTrue(all((ROOT / name).is_dir() for name in expected))
         self.assertFalse(any((ROOT / name).exists() for name in {"workspace", "example", "scripts", "tests", "01-kol-profile-and-scoring"}))
 
-    def test_42_confirmed_persona_and_ten_creators_pass_user_workspace_mode(self):
+    def test_42_ten_creator_database_rows_pass_user_workspace_mode(self):
         holder, source = self.temp_user_workspace()
         self.addCleanup(holder.cleanup)
         _, data = pipeline.load_workspace(source)
-        _, persona = pipeline.parse_persona(source / "persona.md")
-        self.assertEqual(persona["Status"], "Confirmed")
         self.assertEqual(len(data["creators"]), 10)
         output = Path(holder.name) / "dashboards"
         pipeline.build(source, output)
         self.assertEqual(
             {path.name for path in output.glob("*.html")},
-            {"persona-dashboard.html", "outreach-dashboard.html", "performance-dashboard.html"},
+            {"creator-database-dashboard.html", "outreach-dashboard.html", "performance-dashboard.html"},
         )
         result = subprocess.run([
             sys.executable, str(ROOT / "04-tools/validate_workspace.py"), "--source", str(source),
@@ -526,16 +523,16 @@ class PipelineTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Public workspace must be blank", result.stderr)
         self.assertEqual(len(read_rows(workspace / "creators.csv")), 10)
-        _, persona = pipeline.parse_persona(workspace / "persona.md")
-        self.assertEqual(persona["Status"], "Confirmed")
 
-    def test_44_persona_dashboard_visualizes_configured_weights(self):
-        html = pipeline.persona_dashboard(EXAMPLE, example=True)
-        self.assertIn('aria-label="Six creator scoring dimensions and their configured weights"', html)
-        self.assertIn("Audience fit", html)
-        self.assertIn("30%", html)
-        self.assertIn("Collaboration readiness", html)
-        self.assertIn("03-config/scoring-config.json", html)
+    def test_44_creator_database_dashboard_shows_actual_database_metrics(self):
+        _, data = pipeline.load_workspace(EXAMPLE)
+        html = pipeline.creator_database_dashboard(data, EXAMPLE, example=True)
+        self.assertIn("Creator database", html)
+        self.assertIn('aria-label="A B C D creator score tier distribution"', html)
+        self.assertIn('aria-label="Creator subscriber count band distribution"', html)
+        self.assertIn("Data completeness", html)
+        self.assertIn("Recommended next actions", html)
+        self.assertIn("Quiet Metrics Studio", html)
 
     def test_45_outreach_charts_use_creator_and_progress_rows(self):
         _, data = pipeline.load_workspace(EXAMPLE)
@@ -563,8 +560,11 @@ class PipelineTests(unittest.TestCase):
 
     def test_47_empty_workspace_uses_chart_empty_states(self):
         _, data = pipeline.load_workspace(ROOT / "01-workspace")
+        database = pipeline.creator_database_dashboard(data, ROOT / "01-workspace")
         outreach = pipeline.outreach_dashboard(data, ROOT / "01-workspace")
         performance = pipeline.performance_dashboard(data)
+        self.assertNotIn("<svg", database)
+        self.assertIn("No creator records yet", database)
         self.assertNotIn("<svg", outreach)
         self.assertIn("No eligible records yet, so no distribution is shown", outreach)
         self.assertIn("No evidence-ready creators have a score yet", outreach)
@@ -596,6 +596,82 @@ class PipelineTests(unittest.TestCase):
         data["performance"].append(record)
         html = pipeline.performance_dashboard(data, example=True)
         self.assertIn('Download → install</div><div class="metric">N/A</div>', html)
+
+    def test_50_product_brief_discovery_can_save_twenty_creators_in_batches(self):
+        holder = tempfile.TemporaryDirectory()
+        self.addCleanup(holder.cleanup)
+        source = Path(holder.name) / "workspace"
+        shutil.copytree(ROOT / "01-workspace", source)
+        fields, existing = pipeline.read_csv(source / "creators.csv")
+        first = [self.minimal_creator(index) for index in range(1, 9)]
+        merged = pipeline.merge_creator_batch(existing, first, fields)
+        pipeline.write_csv(source / "creators.csv", fields, pipeline.score_creators(merged, self.config))
+        second = [self.minimal_creator(index) for index in range(9, 21)]
+        current = read_rows(source / "creators.csv")
+        merged = pipeline.merge_creator_batch(current, second, fields)
+        pipeline.write_csv(source / "creators.csv", fields, pipeline.score_creators(merged, self.config))
+        _, data = pipeline.load_workspace(source)
+        self.assertEqual(len(data["creators"]), 20)
+        self.assertEqual(data["creators"][0]["name"], "Batch Channel 1")
+        html = pipeline.creator_database_dashboard(data, source)
+        self.assertIn("<div class=\"metric\">20</div>", html)
+
+    def test_51_five_channel_links_can_enter_as_partial_records(self):
+        rows = []
+        for index in range(1, 6):
+            row = self.minimal_creator(index, status="Partial")
+            row["checked_at"] = "2026-10-21"
+            rows.append(row)
+        scored = pipeline.score_creators(rows, self.config)
+        self.assertEqual(len(scored), 5)
+        self.assertTrue(all(row["verification_status"] == "Partial" for row in scored))
+        self.assertTrue(all(row["tier"] == "Unscored" for row in scored))
+
+    def test_52_missing_supplementary_data_does_not_block_database_row(self):
+        row = self.minimal_creator(1)
+        row.update(follower_count="", public_business_email="", metric_summary="", country_region="")
+        result = pipeline.score_creators([row], self.config)[0]
+        self.assertEqual(result["verification_status"], "Pending Verification")
+        self.assertEqual(result["tier"], "Unscored")
+        self.assertEqual(result["follower_count"], "")
+
+    def test_53_interrupted_discovery_resume_preserves_and_enriches_existing_rows(self):
+        fields = self.creator_fields
+        original = self.minimal_creator(1)
+        original["content_category"] = "Workflow education"
+        duplicate = self.minimal_creator(99, status="Partial")
+        duplicate["profile_url"] = original["profile_url"] + "/"
+        duplicate["evidence_url"] = original["evidence_url"]
+        duplicate["checked_at"] = "2026-10-21"
+        duplicate["language"] = "English"
+        merged = pipeline.merge_creator_batch([original], [duplicate, self.minimal_creator(2)], fields)
+        self.assertEqual(len(merged), 2)
+        self.assertEqual(merged[0]["creator_id"], original["creator_id"])
+        self.assertEqual(merged[0]["content_category"], "Workflow education")
+        self.assertEqual(merged[0]["language"], "English")
+
+    def test_54_partial_record_can_score_when_six_dimension_evidence_is_complete(self):
+        row = self.rated(4)
+        row["verification_status"] = "Partial"
+        result = pipeline.score_creators([row], self.config)[0]
+        self.assertEqual(result["verification_status"], "Partial")
+        self.assertEqual((result["score"], result["tier"], result["rank"]), ("80.00", "B", "1"))
+
+    def test_55_outreach_collaboration_and_performance_regression_after_database_change(self):
+        _, data = pipeline.load_workspace(EXAMPLE)
+        self.assertTrue(data["events"])
+        self.assertTrue(data["offers"])
+        self.assertTrue(data["partnerships"])
+        self.assertTrue(data["performance"])
+        self.assertIn("Workflow Weekly", pipeline.outreach_dashboard(data, EXAMPLE, example=True))
+        self.assertIn("Quiet Metrics Studio", pipeline.performance_dashboard(data, example=True))
+
+    def test_56_v22_has_no_independent_persona_artifacts(self):
+        self.assertFalse((ROOT / "01-workspace/persona.md").exists())
+        self.assertFalse((EXAMPLE / "persona.md").exists())
+        self.assertFalse((ROOT / "persona-dashboard.html").exists())
+        self.assertFalse((EXAMPLE / "persona-dashboard.html").exists())
+        self.assertTrue((ROOT / "creator-database-dashboard.html").exists())
 
 
 if __name__ == "__main__":
