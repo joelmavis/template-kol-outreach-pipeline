@@ -11,6 +11,8 @@ Minimum viable row:
 
 Add channel URL, public source, checked date and supplementary fields when they are available. A missing subscriber count, email, average view count or country must not block the row.
 
+Treat completeness as field coverage only. Do not present it as proof that a channel or metric was externally verified, and do not require external verification before filtering or outreach preparation.
+
 Import in manageable batches. Deduplicate by channel URL when available, retain prior non-empty values and save after each batch. If an import is interrupted, reopen the current `creators.csv` and continue; never replace the database with only the unfinished batch.
 
 ## 2. Filter with natural language
@@ -35,6 +37,8 @@ Only after a real action occurs:
 2. append one `activity` row with date, channel, summary and evidence source;
 3. record the next action and next follow-up date;
 4. rebuild the Outreach Dashboard.
+
+Write Creator Name and the business fields at the front of each outreach row. Keep record, creator, collaboration and deliverable IDs at the end for stable joins.
 
 ## 4. Manage collaboration files
 
@@ -61,6 +65,8 @@ Record:
 - optional UTM reference.
 
 If the window or source is unclear, keep the record pending rather than calculating a confident result. Cumulative outcomes may not decline. A documented refund or correction may reduce spend only when the notes contain `[Spend adjustment: reason]`.
+
+A row containing only one available metric—such as D7 views—is still valid. Show it in the table and trend chart, render missing values as `N/A`, and add later D14 or D30 rows without replacing earlier snapshots.
 
 ## Safe state transitions
 

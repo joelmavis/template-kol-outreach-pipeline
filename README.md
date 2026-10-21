@@ -40,19 +40,19 @@ If a supplied table does not contain every standard field, the import still succ
 
 ## Three data tables
 
-- `01-workspace/creators.csv` — creator identity, public information, source trace, verification and missing information.
-- `01-workspace/outreach-progress.csv` — selected creators, current outreach state, real communication events and collaboration/deliverable status.
+- `01-workspace/creators.csv` — creator identity, public information, source trace, field completeness and missing information. External verification is optional.
+- `01-workspace/outreach-progress.csv` — selected creators, current outreach state, real communication events and collaboration/deliverable status. Creator Name and business fields come first; stable IDs remain at the end.
 - `01-workspace/performance.csv` — cumulative D7/D14/D30 results for published deliverables.
 
 HTML files are generated views, not additional tables.
 
 ## Three Dashboards
 
-- `creator-database-dashboard.html` — creator totals, subscriber bands, content categories, complete creator records, filter results and missing information.
+- `creator-database-dashboard.html` — creator totals, field completeness, subscriber bands, content categories, filter results, missing information and creator-specific next actions.
 - `outreach-dashboard.html` — selected creators, contact/reply/negotiation status, recent communication and next actions.
 - `performance-dashboard.html` — D7/D14/D30 trends, downloads, installs, cost efficiency and like-for-like comparisons.
 
-All pages are generated from local files, use no external CDN and show clear Empty States when the workspace has no data. The interface leads with channel, collaboration and content names; internal IDs remain secondary traceability details.
+All pages are generated from local files, use no external CDN and show clear Empty States when the workspace has no data. Partial rows still appear: supplied values are shown, missing values remain empty or `N/A`, and internal IDs stay secondary to channel, collaboration and content names.
 
 ## Collaboration folders
 

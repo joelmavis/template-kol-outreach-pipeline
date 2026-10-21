@@ -70,16 +70,15 @@ class PipelineV3Tests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Duplicate YouTube channel URL"):
             validate_creators(rows)
 
-    def test_05_verified_creator_requires_checked_date(self):
-        with self.assertRaisesRegex(ValueError, "Verified requires checked_at"):
-            validate_creators([{"creator_id": "C-1", "name": "One", "verification_status": "Verified"}])
+    def test_05_external_verification_is_not_required_for_use(self):
+        validate_creators([{"creator_id": "C-1", "name": "One", "verification_status": "Verified"}])
+        validate_creators([{"creator_id": "C-2", "name": "Two", "verification_status": ""}])
 
-    def test_06_public_email_requires_source(self):
-        with self.assertRaisesRegex(ValueError, "email requires a source"):
-            validate_creators([{
-                "creator_id": "C-1", "name": "One", "verification_status": "Partial",
-                "public_business_email": "test@example.com",
-            }])
+    def test_06_missing_email_source_does_not_block_import(self):
+        validate_creators([{
+            "creator_id": "C-1", "name": "One", "verification_status": "",
+            "public_business_email": "test@example.com",
+        }])
 
     def test_07_additional_source_data_must_be_json_object(self):
         with self.assertRaisesRegex(ValueError, "valid JSON"):
@@ -398,6 +397,139 @@ class PipelineV3Tests(unittest.TestCase):
         _, data = load_workspace(workspace)
         self.assertEqual(len(data["performance"]), 1)
         self.assertEqual(data["performance"][0]["utm_url"], "")
+
+    def test_42_outreach_csv_is_name_first_and_keeps_ids_at_the_end(self):
+        fields, _ = read_csv(WORKSPACE / "outreach-progress.csv")
+        self.assertEqual(fields[:5], [
+            "record_type", "creator_name", "status", "channels", "contact_information",
+        ])
+        self.assertEqual(fields[-4:], [
+            "record_id", "creator_id", "collaboration_id", "deliverable_id",
+        ])
+
+    def test_43_creator_name_must_match_creator_id_when_present(self):
+        temp, workspace = copy_workspace(FIXTURE)
+        self.addCleanup(temp.cleanup)
+        fields, rows = read_csv(workspace / "outreach-progress.csv")
+        rows[0]["creator_name"] = "Wrong Channel"
+        write_csv(workspace / "outreach-progress.csv", fields, rows)
+        with self.assertRaisesRegex(ValueError, "does not match creator_id"):
+            load_workspace(workspace)
+
+    def test_44_recommendations_use_creator_specific_state(self):
+        _, data = load_workspace(FIXTURE)
+        html = creator_database_dashboard(data, FIXTURE, fixture=True)
+        self.assertIn("Frame by Frame Lab: prepare the first personalised outreach via Email", html)
+        self.assertIn("Workflow Weekly: negotiation is active", html)
+        self.assertIn("Quiet Metrics Studio: published", html)
+        self.assertNotIn("complete the most useful missing fields", html)
+
+    def test_45_fifty_to_ten_to_three_and_partial_performance_flow(self):
+        temp, workspace = copy_workspace(WORKSPACE)
+        self.addCleanup(temp.cleanup)
+        creator_fields, _ = read_csv(workspace / "creators.csv")
+        creators = []
+        for index in range(1, 51):
+            row = {field: "" for field in creator_fields}
+            row.update({
+                "creator_id": f"C-{index:03d}",
+                "name": f"Local Creator {index:02d}",
+                "platform": "YouTube",
+                "profile_url": f"https://example.com/channel/{index}",
+                "content_category": "Productivity" if index % 2 else "Technology",
+                "follower_count": str(index * 1000),
+                "language": "English" if index % 3 else "",
+                "country_region": "United States" if index % 4 else "",
+                "public_business_email": f"creator{index}@example.com" if index % 5 else "",
+                "source_file": "local-50.csv",
+                "source_row": str(index + 1),
+                "additional_data_json": "{}",
+                "do_not_contact": "false",
+            })
+            creators.append(row)
+        write_csv(workspace / "creators.csv", creator_fields, creators)
+
+        progress_fields, _ = read_csv(workspace / "outreach-progress.csv")
+        progress = []
+        for index in range(1, 11):
+            row = {field: "" for field in progress_fields}
+            status = "Selected / To Contact"
+            if index == 1:
+                status = "Contacted"
+            elif index == 2:
+                status = "Replied"
+            elif index == 3:
+                status = "Negotiating"
+            row.update({
+                "record_type": "outreach",
+                "creator_name": f"Local Creator {index:02d}",
+                "status": status,
+                "channels": "Email",
+                "contact_information": f"creator{index}@example.com",
+                "first_contact_at": "2026-10-01" if index <= 3 else "",
+                "last_contact_at": "2026-10-02" if index <= 3 else "",
+                "next_action_at": "2026-10-08" if index == 1 else "",
+                "next_action": "Review reply details" if index == 2 else "Confirm open terms" if index == 3 else "",
+                "owner": "Campaign lead",
+                "opt_out": "false",
+                "source": "User workspace",
+                "record_id": f"OUT-{index:03d}",
+                "creator_id": f"C-{index:03d}",
+            })
+            progress.append(row)
+        partnership = {field: "" for field in progress_fields}
+        partnership.update({
+            "record_type": "partnership",
+            "creator_name": "Local Creator 01",
+            "status": "Published",
+            "collaboration_type": "Integrated video",
+            "confirmed_at": "2026-09-29",
+            "published_at": "2026-10-01",
+            "content_type": "YouTube video",
+            "content_title": "Local workflow test",
+            "owner": "Campaign lead",
+            "opt_out": "false",
+            "source": "User workspace",
+            "record_id": "PAR-001",
+            "creator_id": "C-001",
+            "collaboration_id": "COL-001",
+            "deliverable_id": "DEL-001",
+        })
+        progress.append(partnership)
+        write_csv(workspace / "outreach-progress.csv", progress_fields, progress)
+
+        performance_fields, _ = read_csv(workspace / "performance.csv")
+        d7 = {field: "" for field in performance_fields}
+        d7.update({
+            "creator_id": "C-001", "collaboration_id": "COL-001", "deliverable_id": "DEL-001",
+            "published_at": "2026-10-01", "window": "D7", "views": "1000",
+            "verification_status": "User provided", "notes": "Views only at D7",
+        })
+        write_csv(workspace / "performance.csv", performance_fields, [d7])
+        output = Path(temp.name) / "output"
+        first = build(workspace, output)
+        self.assertIn(">50<", first["creator-database-dashboard.html"])
+        self.assertIn(">10<", first["outreach-dashboard.html"])
+        self.assertIn("D7", first["performance-dashboard.html"])
+        self.assertIn(">1000<", first["performance-dashboard.html"])
+        self.assertIn(">N/A<", first["performance-dashboard.html"])
+
+        d14 = {field: "" for field in performance_fields}
+        d14.update({
+            "creator_id": "C-001", "collaboration_id": "COL-001", "deliverable_id": "DEL-001",
+            "published_at": "2026-10-01", "window": "D14", "views": "1500",
+            "downloads": "100", "installs": "60", "verification_status": "User provided",
+            "notes": "Views, downloads and installs at D14",
+        })
+        write_csv(workspace / "performance.csv", performance_fields, [d7, d14])
+        second = build(workspace, output)
+        self.assertIn("D14", second["performance-dashboard.html"])
+        self.assertIn("D7 1,000 · D14 1,500", second["performance-dashboard.html"])
+        self.assertIn('<div class="label">Total downloads</div><div class="metric">100</div>', second["performance-dashboard.html"])
+        self.assertIn('<div class="label">Total installs</div><div class="metric">60</div>', second["performance-dashboard.html"])
+        self.assertIn('<div class="label">Total recorded spend</div><div class="metric">N/A</div>', second["performance-dashboard.html"])
+        self.assertIn(">100<", second["performance-dashboard.html"])
+        self.assertIn(">60<", second["performance-dashboard.html"])
 
 
 if __name__ == "__main__":

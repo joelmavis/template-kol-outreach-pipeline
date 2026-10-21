@@ -10,7 +10,10 @@ import re
 import shutil
 
 from local_table import read_local_table
-from pipeline import FILES, ROOT, merge_creator_batch, read_csv, validate_creators, write_csv
+from pipeline import (
+    FILES, ROOT, creator_completeness, merge_creator_batch, read_csv,
+    validate_creators, write_csv,
+)
 
 
 ALIASES = {
@@ -63,9 +66,9 @@ def normalise_status(value):
         "verified": "Verified", "已核实": "Verified", "已验证": "Verified",
         "partial": "Partial", "部分核实": "Partial", "部分验证": "Partial",
         "pending": "Pending Verification", "pending verification": "Pending Verification",
-        "待核实": "Pending Verification", "待验证": "Pending Verification", "": "Pending Verification",
+        "待核实": "Pending Verification", "待验证": "Pending Verification", "": "",
     }
-    return lookup.get(value.casefold(), "Pending Verification")
+    return lookup.get(value.casefold(), "")
 
 
 def map_rows(headers, source_rows, fields, source_name):
@@ -120,13 +123,18 @@ def main(argv=None):
     mapped = map_rows(headers, source_rows, fields, args.batch.name)
     merged = merge_creator_batch(existing, mapped, fields)
     validate_creators(merged)
-    verified = sum(row.get("verification_status") == "Verified" for row in merged)
-    incomplete = sum(row.get("verification_status") != "Verified" or row.get("missing_evidence", "").strip() for row in merged)
+    average_completeness = round(
+        sum(creator_completeness(row) for row in merged) / len(merged)
+    ) if merged else 0
+    incomplete = sum(creator_completeness(row) < 100 for row in merged)
     if not args.dry_run:
         preserve_source(args.batch, args.source)
         write_csv(creator_path, fields, merged)
     mode = "Checked" if args.dry_run else "Saved"
-    print(f"{mode} {len(mapped)} source row(s); database has {len(merged)} unique creator(s), {verified} verified, {incomplete} needing completion")
+    print(
+        f"{mode} {len(mapped)} source row(s); database has {len(merged)} unique creator(s), "
+        f"{average_completeness}% average field completeness, {incomplete} with missing fields"
+    )
 
 
 if __name__ == "__main__":

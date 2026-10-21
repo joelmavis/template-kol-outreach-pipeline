@@ -14,8 +14,9 @@
 - A useful creator row may contain only a stable Creator ID and channel name. Channel URL and supplementary fields may remain blank or `Unknown` until available.
 - Preserve useful unmapped source fields in `additional_data_json`. Record `source_file` and `source_row`, and preserve the original input under `01-workspace/imports/` when the file is accessible.
 - Deduplicate by normalised channel URL when present. Do not overwrite prior non-empty values, outreach history, collaboration notes or performance data during a later import.
-- Use `Verified`, `Partial` and `Pending Verification`. `Verified` requires a checked date; missing information does not become zero.
-- Work in batches. After each import, report total creators, verified records and records needing completion.
+- External platform verification is optional. If a source explicitly provides a verification state, preserve `Verified`, `Partial` or `Pending Verification`; otherwise leave it blank. Never block normal use because a record was not externally verified.
+- Data completeness means tracked fields have values; it does not certify that those values are true. Missing information does not become zero.
+- Work in batches. After each import, report total creators, average field completeness and records with missing fields.
 
 ## Natural-language filtering
 
@@ -33,8 +34,8 @@
 
 ## Data ownership
 
-- `creators.csv` owns creator identity, public details, source trace, verification and missing information.
-- `outreach-progress.csv` has `outreach`, `activity` and `partnership` records. Keep one current outreach row per creator and append one activity row per real interaction.
+- `creators.csv` owns creator identity, public details, source trace, optional verification notes and missing information.
+- `outreach-progress.csv` has `outreach`, `activity` and `partnership` records. Put Creator Name and business fields first, keep stable IDs at the end, keep one current outreach row per creator and append one activity row per real interaction.
 - Detailed negotiation, pricing and contract working history belongs under `collaborations/<creator-slug>/`, not in extra tables.
 - `performance.csv` owns D7/D14/D30 cumulative measurements for published deliverables.
 - Use stable IDs for joins. Lead with names in HTML and use IDs only as secondary traceability details.
@@ -46,6 +47,7 @@
 - UTM is optional. Store it when supplied, but never treat a generated link as proof of attribution.
 - Performance rows require a published deliverable. D7/D14/D30 are cumulative snapshots and must not be summed.
 - If the measurement window, source or definition is unclear, keep the row `Pending Verification` and do not show confident cost or conversion conclusions.
+- A partial D7, D14 or D30 row is valid. Display supplied metrics, show missing values as `N/A`, and calculate only metrics with sufficient inputs and a consistent measurement basis.
 - Compare creators only when the observation window, attribution source, metric definition and currency match.
 
 ## Public-template safeguards

@@ -16,6 +16,10 @@ Release remains conditional on the listed puppyone Desktop manual checks.
 - Moved proposal, pricing and contract working detail into three Markdown files per negotiating creator.
 - Made UTM optional and allowed local performance input when source and measurement definition are clear.
 - Updated all three Dashboards without changing the established visual system.
+- Replaced the potentially misleading Verified KPI with field completeness and explicit missing-information display.
+- Added creator-specific next actions based on recorded contact routes, relationship state, follow-up dates, recent communication and negotiation notes.
+- Reordered Outreach CSV columns so Creator Name and business fields lead while stable IDs remain at the end.
+- Allowed partial performance snapshots, including a views-only D7 row, with missing metrics rendered as N/A.
 - Preserved the separation between normal User Workspace validation and public Template Release checks.
 
 ## Current project state
@@ -28,12 +32,16 @@ Release remains conditional on the listed puppyone Desktop manual checks.
 
 ## Verification result
 
-- Automated tests: **41/41 passed**
+- Automated tests: **45/45 passed**
 - Workspace validation: passed for the blank Workspace and fictional fixture
 - Dashboard generation: passed for all six generated HTML files
 - Public release boundary: passed
 - Source formatting check: passed
 - Real supplied CSV dry-run: **50/50 rows accepted**
+- Real supplied CSV completeness report: **44% average; missing fields did not block import**
+- Full usability regression: **50 creators → 10 selected → 3 status changes → D7 views only → D14 views/downloads/installs passed**
+- Private end-to-end UAT: **three Dashboards passed with the supplied 50-row table at desktop and 800-pixel widths**
+- Partial KPI behaviour: **recorded D14 downloads and installs display even when spend remains unavailable; CPD/CPI stay N/A**
 
 ## Remaining release risks
 

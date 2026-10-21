@@ -177,16 +177,12 @@ def validate_creators(rows):
             if normalized in seen_urls:
                 raise ValueError(f"Duplicate YouTube channel URL for {creator_id}")
             seen_urls.add(normalized)
-        status = row.get("verification_status", "").strip() or "Pending Verification"
+        status = row.get("verification_status", "").strip()
         status = {"Pending": "Pending Verification", "Needs verification": "Pending Verification"}.get(status, status)
-        if status not in CREATOR_VERIFICATION_STATES:
+        if status and status not in CREATOR_VERIFICATION_STATES:
             raise ValueError(f"{creator_id}: invalid verification_status {status}")
         row["verification_status"] = status
-        checked = parse_temporal(row.get("checked_at"), f"{creator_id} checked_at")
-        if status == "Verified" and not checked:
-            raise ValueError(f"{creator_id}: Verified requires checked_at")
-        if row.get("public_business_email", "").strip() and not row.get("business_email_source", "").strip():
-            raise ValueError(f"{creator_id}: public business email requires a source")
+        parse_temporal(row.get("checked_at"), f"{creator_id} checked_at")
         if row.get("follower_count", "").strip() and row.get("follower_count", "").strip().casefold() != "unknown":
             count = number(row["follower_count"], f"{creator_id} follower_count")
             if count < 0:
@@ -209,6 +205,13 @@ def validate_relations(data, source):
         for row in data[name]:
             if row.get("creator_id") not in creator_ids:
                 raise ValueError(f"{name}: unknown creator_id {row.get('creator_id')}")
+            expected_name = creator_by_id[row["creator_id"]].get("name", "").strip()
+            stored_name = row.get("creator_name", "").strip()
+            if stored_name and stored_name.casefold() != expected_name.casefold():
+                raise ValueError(
+                    f"{name}: creator_name {stored_name} does not match creator_id {row['creator_id']}"
+                )
+            row["creator_name"] = expected_name
 
     current_seen = set()
     for row in data["outreach"]:
@@ -280,9 +283,7 @@ def validate_relations(data, source):
         status = row.get("verification_status", "").strip() or "Pending Verification"
         if status not in {"Verified", "User provided", "Pending Verification", "Illustrative"}:
             raise ValueError(f"performance: {key} invalid verification_status {status}")
-        measured = parse_temporal(row.get("measured_at"), f"performance {key} measured_at")
-        if status in {"Verified", "User provided", "Illustrative"} and not measured:
-            raise ValueError(f"performance: {key} confirmed measurement requires measured_at")
+        parse_temporal(row.get("measured_at"), f"performance {key} measured_at")
         validate_url(row.get("utm_url"), f"performance {key} utm_url")
         for field in COUNT_FIELDS + ("spend",):
             value = number(row.get(field), f"performance {key} {field}", allow_blank=True)
@@ -420,7 +421,7 @@ def page(title, eyebrow, intro, body, *, fixture=False):
     note = '<div class="sample">Test fixture · Illustrative data and fictional creators</div>' if fixture else ""
     footer = "Test fixture · Illustrative data and fictional creators" if fixture else "Creator Outreach Pipeline · Generated from local workspace files"
     return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{escape(title)} · Creator Outreach Pipeline</title><style>
-:root{{--ink:#18211f;--muted:#66716d;--paper:#f6f3ed;--card:#fffdfa;--line:#ded8ce;--green:#256b52;--sage:#dfeae2;--gold:#a86e19;--rose:#9b4a4a;--blue:#315f77}}*{{box-sizing:border-box}}body{{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}}main{{max-width:1180px;margin:auto;padding:48px 28px 72px}}header{{border-bottom:1px solid var(--line);padding-bottom:28px;margin-bottom:26px}}.eyebrow{{color:var(--green);font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}}h1{{font:700 clamp(34px,6vw,64px)/1.02 Georgia,serif;max-width:800px;margin:10px 0 14px}}h2{{font:700 27px/1.15 Georgia,serif;margin:0 0 14px}}h3{{font-size:14px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 8px}}p{{max-width:820px}}.intro{{font-size:18px;color:#3e4845}}.sample{{display:inline-block;margin-top:15px;padding:6px 10px;border:1px solid #c9bba4;border-radius:999px;color:#745b37;font-size:12px}}.record-id{{display:block;color:var(--muted);font-size:11px;font-weight:500;margin-top:3px}}.grid{{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;margin:18px 0 28px}}.card{{grid-column:span 4;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 8px 24px #332a1c0a}}.wide{{grid-column:span 12}}.half{{grid-column:span 6}}.quarter{{grid-column:span 3}}.metric{{font:700 34px/1 Georgia,serif;margin:7px 0}}.label,.muted{{color:var(--muted)}}.badge{{display:inline-block;border-radius:999px;padding:4px 9px;background:#e9ecea;font-size:12px;white-space:nowrap}}.good{{background:var(--sage);color:#174a38}}.warn{{background:#f4e8cf;color:#765018}}.risk{{background:#f3dddd;color:#7c3333}}.table-wrap{{overflow:auto;border:1px solid var(--line);border-radius:14px;background:var(--card)}}table{{border-collapse:collapse;width:100%;min-width:720px}}th,td{{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}}th{{background:#eee9e0;font-size:12px;text-transform:uppercase;letter-spacing:.05em}}tr:last-child td{{border-bottom:0}}.empty{{border:1px dashed #b8b1a6;border-radius:14px;padding:26px;color:var(--muted);background:#fbf9f5}}.path{{font-family:ui-monospace,SFMono-Regular,monospace;background:#ece8df;border-radius:7px;padding:2px 6px}}footer{{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}}.chart-layout{{display:grid;grid-template-columns:minmax(210px,.7fr) minmax(260px,1.3fr);gap:24px;align-items:center}}.donut-wrap{{max-width:260px;margin:auto;width:100%}}.donut{{display:block;width:100%;height:auto}}.chart-center-value{{font:700 28px Georgia,serif;fill:var(--ink)}}.chart-center-label{{font-size:11px;fill:var(--muted);text-transform:uppercase;letter-spacing:.08em}}.legend{{display:grid;gap:10px}}.legend-item,.series-key{{display:flex;gap:10px;align-items:flex-start}}.legend-item small,.series-key small,.bar-row small{{display:block;color:var(--muted);margin-top:2px}}.swatch{{width:11px;height:11px;border-radius:3px;flex:0 0 auto;margin-top:5px}}.bar-chart{{display:grid;gap:15px;margin-top:12px}}.bar-heading{{display:flex;justify-content:space-between;gap:16px}}.bar-track{{height:10px;background:#ebe5dc;border-radius:99px;overflow:hidden;margin:6px 0 4px}}.bar-track i{{display:block;height:100%;border-radius:99px}}.line-chart svg{{display:block;width:100%;height:auto}}.grid-line{{stroke:#ded8ce;stroke-width:1}}.axis-label{{fill:var(--muted);font-size:12px}}.series-legend{{display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:12px}}.chart-note{{color:var(--muted);font-size:13px;margin-top:12px}}.chart-stack{{display:grid;gap:16px}}.chart-panel{{border-top:1px solid var(--line);padding-top:18px}}.chart-panel:first-child{{border-top:0;padding-top:0}}@media(max-width:900px){{.quarter{{grid-column:span 6}}}}@media(max-width:760px){{main{{padding:30px 16px 50px}}.card,.half,.quarter{{grid-column:span 12}}.chart-layout{{grid-template-columns:1fr}}.donut-wrap{{max-width:220px}}.series-legend{{display:grid}}}}</style></head><body><main><header><div class="eyebrow">{escape(eyebrow)}</div><h1>{escape(title)}</h1><p class="intro">{escape(intro)}</p>{note}</header>{body}<footer>{escape(footer)}</footer></main></body></html>'''
+:root{{--ink:#18211f;--muted:#66716d;--paper:#f6f3ed;--card:#fffdfa;--line:#ded8ce;--green:#256b52;--sage:#dfeae2;--gold:#a86e19;--rose:#9b4a4a;--blue:#315f77}}*{{box-sizing:border-box}}body{{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}}main{{max-width:1180px;margin:auto;padding:48px 28px 72px}}header{{border-bottom:1px solid var(--line);padding-bottom:28px;margin-bottom:26px}}.eyebrow{{color:var(--green);font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}}h1{{font:700 clamp(34px,6vw,64px)/1.02 Georgia,serif;max-width:800px;margin:10px 0 14px}}h2{{font:700 27px/1.15 Georgia,serif;margin:0 0 14px}}h3{{font-size:14px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 8px}}p{{max-width:820px}}.intro{{font-size:18px;color:#3e4845}}.sample{{display:inline-block;margin-top:15px;padding:6px 10px;border:1px solid #c9bba4;border-radius:999px;color:#745b37;font-size:12px}}.record-id{{display:block;color:var(--muted);font-size:11px;font-weight:500;margin-top:3px}}.grid{{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;margin:18px 0 28px}}.card{{grid-column:span 4;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 8px 24px #332a1c0a}}.wide{{grid-column:span 12}}.half{{grid-column:span 6}}.quarter{{grid-column:span 3}}.metric{{font:700 34px/1 Georgia,serif;margin:7px 0}}.label,.muted{{color:var(--muted)}}.badge{{display:inline-block;border-radius:999px;padding:4px 9px;background:#e9ecea;font-size:12px;white-space:nowrap}}.good{{background:var(--sage);color:#174a38}}.warn{{background:#f4e8cf;color:#765018}}.risk{{background:#f3dddd;color:#7c3333}}.table-wrap{{overflow:auto;border:1px solid var(--line);border-radius:14px;background:var(--card)}}table{{border-collapse:collapse;width:100%;min-width:720px}}th,td{{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}}th{{background:#eee9e0;font-size:12px;text-transform:uppercase;letter-spacing:.05em}}tr:last-child td{{border-bottom:0}}.empty{{border:1px dashed #b8b1a6;border-radius:14px;padding:26px;color:var(--muted);background:#fbf9f5}}.path{{font-family:ui-monospace,SFMono-Regular,monospace;background:#ece8df;border-radius:7px;padding:2px 6px}}footer{{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}}.chart-layout{{display:grid;grid-template-columns:minmax(210px,.7fr) minmax(260px,1.3fr);gap:24px;align-items:center}}.donut-wrap{{max-width:260px;margin:auto;width:100%}}.donut{{display:block;width:100%;height:auto}}.chart-center-value{{font:700 28px Georgia,serif;fill:var(--ink)}}.chart-center-label{{font-size:11px;fill:var(--muted);text-transform:uppercase;letter-spacing:.08em}}.legend{{display:grid;gap:10px}}.legend-item,.series-key{{display:flex;gap:10px;align-items:flex-start}}.legend-item small,.series-key small,.bar-row small{{display:block;color:var(--muted);margin-top:2px}}.swatch{{width:11px;height:11px;border-radius:3px;flex:0 0 auto;margin-top:5px}}.bar-chart{{display:grid;gap:15px;margin-top:12px}}.bar-heading{{display:flex;justify-content:space-between;gap:16px}}.bar-track{{height:10px;background:#ebe5dc;border-radius:99px;overflow:hidden;margin:6px 0 4px}}.bar-track i{{display:block;height:100%;border-radius:99px}}.line-chart svg{{display:block;width:100%;height:auto}}.grid-line{{stroke:#ded8ce;stroke-width:1}}.axis-label{{fill:var(--muted);font-size:12px}}.series-legend{{display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:12px}}.chart-note{{color:var(--muted);font-size:13px;margin-top:12px}}.chart-stack{{display:grid;gap:16px}}.chart-panel{{border-top:1px solid var(--line);padding-top:18px}}.chart-panel:first-child{{border-top:0;padding-top:0}}@media(max-width:900px){{.half{{grid-column:span 12}}.quarter{{grid-column:span 6}}}}@media(max-width:760px){{main{{padding:30px 16px 50px}}.card,.half,.quarter{{grid-column:span 12}}.chart-layout{{grid-template-columns:1fr}}.donut-wrap{{max-width:220px}}.series-legend{{display:grid}}}}</style></head><body><main><header><div class="eyebrow">{escape(eyebrow)}</div><h1>{escape(title)}</h1><p class="intro">{escape(intro)}</p>{note}</header>{body}<footer>{escape(footer)}</footer></main></body></html>'''
 
 
 def audience_count(value):
@@ -453,16 +454,103 @@ def content_display(partnership):
     return f"<b>{fmt(label)}</b>" + (f"<br><span class='muted'>{fmt(url)}</span>" if url else "") + f"<span class='record-id'>Internal deliverable ID: {fmt(partnership.get('deliverable_id'))}</span>"
 
 
+CREATOR_COMPLETENESS_FIELDS = (
+    ("profile_url", "channel URL"),
+    ("handle", "channel handle"),
+    ("country_region", "country / region"),
+    ("language", "language"),
+    ("content_category", "content category"),
+    ("follower_count", "subscriber count"),
+)
+
+
+def creator_contact(row):
+    return (
+        row.get("public_business_email", "").strip()
+        or row.get("dm_url", "").strip()
+        or row.get("contact_page_url", "").strip()
+    )
+
+
+def creator_missing_fields(row):
+    missing = [label for field, label in CREATOR_COMPLETENESS_FIELDS if not row.get(field, "").strip()]
+    if not creator_contact(row):
+        missing.append("public contact route")
+    return missing
+
+
+def creator_completeness(row):
+    total = len(CREATOR_COMPLETENESS_FIELDS) + 1
+    return round((total - len(creator_missing_fields(row))) / total * 100)
+
+
+def creator_recommendation(row, outreach_row, latest_event, partnership):
+    """Return one evidence-based next action, or nothing when the files do not support one."""
+    name = row.get("name", "").strip() or "Unknown channel"
+    status = outreach_row.get("status", "").strip() if outreach_row else ""
+    relationship_contact = outreach_row.get("contact_information", "").strip() if outreach_row else ""
+    contact = creator_contact(row) or relationship_contact
+    if row.get("do_not_contact", "").strip().lower() == "true" or status == "Opted out":
+        return f"{name}: do not contact; the current record is marked as opted out."
+    if status == "Negotiating" or (partnership and partnership.get("status") == "Negotiating"):
+        action = outreach_row.get("next_action", "").strip() if outreach_row else ""
+        if not action:
+            action = partnership.get("next_action", "").strip()
+        if action:
+            return f"{name}: negotiation is active — {action.rstrip('.')}."
+        return None
+    if status == "Selected / To Contact":
+        if contact:
+            route = outreach_row.get("channels", "").strip() or (
+                "email" if row.get("public_business_email", "").strip() else "the recorded public contact route"
+            )
+            return f"{name}: prepare the first personalised outreach via {route}; no contact event is recorded yet."
+        return f"{name}: add a public business email, DM link or contact page before preparing first outreach."
+    if status == "Contacted":
+        last_contact = outreach_row.get("last_contact_at", "").strip() or (
+            latest_event.get("event_at", "").strip() if latest_event else ""
+        )
+        follow_up = outreach_row.get("next_action_at", "").strip()
+        if follow_up:
+            context = f" after the last recorded contact on {last_contact}" if last_contact else ""
+            return f"{name}: follow up on {follow_up}{context}."
+        if last_contact:
+            return f"{name}: contacted on {last_contact}; set a follow-up date if no reply has arrived."
+        return f"{name}: contact is recorded, but the latest contact date and follow-up date are missing."
+    if status == "Replied":
+        action = outreach_row.get("next_action", "").strip()
+        if action:
+            return f"{name}: replied — {action.rstrip('.')}."
+        return f"{name}: a reply is recorded; capture the open question and next agreed action."
+    if status in {"Confirmed", "Published", "Completed"}:
+        action = outreach_row.get("next_action", "").strip()
+        if action:
+            return f"{name}: {status.lower()} — {action.rstrip('.')}."
+        if status == "Published":
+            return f"{name}: content is published; add the next available D7, D14 or D30 result."
+        return None
+    missing = creator_missing_fields(row)
+    if missing:
+        return f"{name}: missing {', '.join(missing[:3])}" + (" and other fields." if len(missing) > 3 else ".")
+    return None
+
+
 def creator_database_dashboard(data, source, *, fixture=False):
     creators = list(data["creators"])
     outreach = {row["creator_id"]: row for row in data["outreach"]}
-    verified = sum(row.get("verification_status") == "Verified" for row in creators)
-    contactable = sum(bool(row.get("public_business_email", "").strip() or row.get("dm_url", "").strip() or row.get("contact_page_url", "").strip()) and row.get("do_not_contact", "").lower() != "true" for row in creators)
-    incomplete = sum(row.get("verification_status") != "Verified" or bool(row.get("missing_evidence", "").strip()) for row in creators)
+    latest_events = {}
+    for event in sorted(data["events"], key=lambda item: item.get("event_at", "")):
+        latest_events[event["creator_id"]] = event
+    partnerships = {}
+    for partnership in data["partnerships"]:
+        partnerships[partnership["creator_id"]] = partnership
+    contactable = sum(bool(creator_contact(row)) and row.get("do_not_contact", "").lower() != "true" for row in creators)
+    completeness_values = [creator_completeness(row) for row in creators]
+    average_completeness = round(sum(completeness_values) / len(completeness_values)) if completeness_values else 0
     selected = sum(row.get("status") in {"Selected / To Contact", "Contacted", "Replied", "Negotiating", "Confirmed", "Published", "Completed"} for row in outreach.values())
     kpis = "".join([
         f'<section class="card quarter"><div class="label">Creators</div><div class="metric">{len(creators)}</div><div class="muted">Saved local records</div></section>',
-        f'<section class="card quarter"><div class="label">Verified</div><div class="metric">{verified}</div><div class="muted">Checked records</div></section>',
+        f'<section class="card quarter"><div class="label">Average completeness</div><div class="metric">{average_completeness}%</div><div class="muted">Fields present, not truth verification</div></section>',
         f'<section class="card quarter"><div class="label">Contactable</div><div class="metric">{contactable}</div><div class="muted">Public route recorded</div></section>',
         f'<section class="card quarter"><div class="label">Selected</div><div class="metric">{selected}</div><div class="muted">Moved to outreach</div></section>',
     ])
@@ -476,24 +564,27 @@ def creator_database_dashboard(data, source, *, fixture=False):
     category_chart = donut_chart([(label, value, CHART_COLORS[index % len(CHART_COLORS)]) for index, (label, value) in enumerate(categories.most_common(6))], aria_label="Content category distribution", center_value=len(creators), center_label="Creators")
     rows, recommendations = [], []
     for row in sorted(creators, key=lambda item: (item.get("name", "").casefold(), item["creator_id"])):
-        contact = row.get("public_business_email") or row.get("dm_url") or row.get("contact_page_url")
+        contact = creator_contact(row)
         state = outreach.get(row["creator_id"], {}).get("status", "Not selected")
         subscriber = audience_count(row.get("follower_count"))
+        missing_fields = creator_missing_fields(row)
+        completeness = creator_completeness(row)
         rows.append([
             f"<b>{fmt(row.get('name'), 'Unknown channel')}</b><br><span class='muted'>{fmt(row.get('profile_url'), 'URL not recorded')}</span><span class='record-id'>Internal creator ID: {fmt(row['creator_id'])}</span>",
             f"{subscriber:,.0f}" if subscriber is not None else "Unknown",
             fmt(row.get("content_category"), "Unknown"),
             f"{fmt(row.get('language'), 'Unknown')}<br><span class='muted'>{fmt(row.get('country_region'), 'Unknown')}</span>",
-            badge(row.get("verification_status") or "Pending Verification", "good" if row.get("verification_status") == "Verified" else "warn"),
-            fmt(contact), fmt(state), fmt(row.get("source_file") or row.get("evidence_url")), fmt(row.get("missing_evidence"), "No recorded gaps"),
+            f"<b>{completeness}%</b><br><span class='muted'>{escape(', '.join(missing_fields[:3]) if missing_fields else 'No tracked field gaps')}</span>",
+            fmt(contact), fmt(state), fmt(row.get("source_file") or row.get("evidence_url")), fmt(row.get("missing_evidence"), "No additional notes"),
         ])
-        if len(recommendations) < 6:
-            if state == "Selected / To Contact":
-                recommendations.append(f"{row['name']}: prepare one personalised email and DM draft before any contact is recorded.")
-            elif row.get("verification_status") != "Verified":
-                recommendations.append(f"{row['name']}: complete the most useful missing fields from the supplied source.")
-            elif not contact:
-                recommendations.append(f"{row['name']}: look for a public business contact route if the user chooses this channel.")
+        recommendation = creator_recommendation(
+            row,
+            outreach.get(row["creator_id"]),
+            latest_events.get(row["creator_id"]),
+            partnerships.get(row["creator_id"]),
+        )
+        if recommendation and len(recommendations) < 8:
+            recommendations.append(recommendation)
     specs = [
         ("Channel URL", lambda r: bool(r.get("profile_url", "").strip())),
         ("Subscriber count", lambda r: audience_count(r.get("follower_count")) is not None),
@@ -504,8 +595,8 @@ def creator_database_dashboard(data, source, *, fixture=False):
         ("Source trace", lambda r: bool(r.get("source_file", "").strip() or r.get("evidence_url", "").strip())),
     ]
     completeness = [[escape(label), str(sum(predicate(r) for r in creators)), str(len(creators)-sum(predicate(r) for r in creators)), f"{(sum(predicate(r) for r in creators)/len(creators)*100 if creators else 0):.0f}%"] for label, predicate in specs]
-    next_actions = "".join(f"<li>{escape(item)}</li>" for item in recommendations) or "<li>Attach a local creator CSV or XLSX file to begin. The Agent can import partial rows without inventing missing values.</li>"
-    body = f'''<div class="grid">{kpis}</div><section class="grid"><div class="card half"><h2>Subscriber bands</h2><p class="muted">Recorded subscriber counts only; Unknown stays separate.</p>{band_chart}</div><div class="card half"><h2>Content categories</h2><p class="muted">Categories preserved from the source file or user instructions.</p>{category_chart}</div></section><section class="grid"><div class="card wide"><h2>Creator database and filter results</h2>{table(['Channel','Subscribers','Category','Language / country','Verification','Public contact','Filter result','Source','Missing information'], rows, 'No creators yet. Upload a local CSV or XLSX table and tell the Agent what you need.')}</div></section><section class="grid"><div class="card half"><h2>Data completeness</h2>{table(['Field group','Complete','Missing','Coverage'], completeness, 'No creator records yet.') if creators else '<div class="empty">No creator records yet. Completeness appears after the first import.</div>'}</div><div class="card half"><h2>Recommended next actions</h2><ul>{next_actions}</ul><p class="chart-note">{incomplete} record(s) currently need verification or completion.</p></div></section><p class="muted">Source of truth: <span class="path">{source_path_label(source)}/creators.csv</span>. Internal IDs remain in the data layer; the interface leads with channel names.</p>'''
+    next_actions = "".join(f"<li>{escape(item)}</li>" for item in recommendations) or "<li>No evidence-based next action is available yet. Add a creator record or relationship update when one becomes available.</li>"
+    body = f'''<div class="grid">{kpis}</div><section class="grid"><div class="card half"><h2>Subscriber bands</h2><p class="muted">Recorded subscriber counts only; Unknown stays separate.</p>{band_chart}</div><div class="card half"><h2>Content categories</h2><p class="muted">Categories preserved from the source file or user instructions.</p>{category_chart}</div></section><section class="grid"><div class="card wide"><h2>Creator database and filter results</h2>{table(['Channel','Subscribers','Category','Language / country','Data completeness','Public contact','Filter / outreach state','Source','Missing information'], rows, 'No creators yet. Upload a local CSV or XLSX table and tell the Agent what you need.')}</div></section><section class="grid"><div class="card half"><h2>Data completeness</h2><p class="muted">Coverage means a field has a value. It does not certify that the value was externally verified.</p>{table(['Field group','Complete','Missing','Coverage'], completeness, 'No creator records yet.') if creators else '<div class="empty">No creator records yet. Completeness appears after the first import.</div>'}</div><div class="card half"><h2>Recommended next actions</h2><ul>{next_actions}</ul><p class="chart-note">Suggestions use each creator’s recorded fields, current relationship state and latest communication only.</p></div></section><p class="muted">Source of truth: <span class="path">{source_path_label(source)}/creators.csv</span>. Missing fields do not block display or import. Internal IDs remain in the data layer; the interface leads with channel names.</p>'''
     return page("Creator database", "Import, filter, continue", "A local creator database built from files you provide, with partial records preserved for later completion.", body, fixture=fixture)
 
 
@@ -538,7 +629,7 @@ def outreach_dashboard(data, source, *, fixture=False):
 
 def ratio(a, b):
     x, y = number(a, "ratio numerator", allow_blank=True), number(b, "ratio denominator", allow_blank=True)
-    return "—" if x is None or y in {None, 0} else f"{x/y*100:.1f}%"
+    return "N/A" if x is None or y in {None, 0} else f"{x/y*100:.1f}%"
 
 
 def cost_value(record, denominator):
@@ -573,17 +664,31 @@ def performance_dashboard(data, source=None, *, fixture=False):
         creator = creators[partnership["creator_id"]]
         latest_records.append((creator, partnership, latest))
         labels = [window for window in ("D7", "D14", "D30") if window in windows]
-        series = [(label, [number(windows[window].get(metric), metric, allow_blank=True) for window in labels], color) for metric, label, color in (("downloads", "Downloads", CHART_COLORS[0]), ("installs", "Installs", CHART_COLORS[1]), ("activated_users", "Activated users", CHART_COLORS[2]))]
+        series = [
+            (label, values, color)
+            for metric, label, color in (
+                ("views", "Views", CHART_COLORS[0]),
+                ("downloads", "Downloads", CHART_COLORS[1]),
+                ("installs", "Installs", CHART_COLORS[2]),
+            )
+            if any(
+                value is not None
+                for value in [number(windows[window].get(metric), metric, allow_blank=True) for window in labels]
+            )
+            for values in [[number(windows[window].get(metric), metric, allow_blank=True) for window in labels]]
+        ]
         trend_panels.append(f'<div class="chart-panel"><h3>{fmt(creator["name"])} · {fmt(partnership.get("content_title") or partnership.get("content_type"), "Published content")}</h3>{line_chart(labels, series, aria_label=f"{creator["name"]} cumulative performance")}</div>')
         if latest.get("verification_status") == "Pending Verification":
             insights.append(f"{creator['name']}: confirm the measurement source and window before using cost or conversion results.")
-        elif latest.get("downloads", "").strip() in {"", "0"}:
-            insights.append(f"{creator['name']}: downloads are missing or zero at {latest['window']}; review the path before scaling.")
+        elif not latest.get("downloads", "").strip() and latest.get("views", "").strip():
+            insights.append(f"{creator['name']}: {latest['window']} currently includes views only; add downloads or installs when available. Cost and conversion remain N/A.")
+        elif latest.get("downloads", "").strip() == "0":
+            insights.append(f"{creator['name']}: downloads are recorded as zero at {latest['window']}; review the path before scaling.")
         else:
             insights.append(f"{creator['name']}: compare {latest['window']} with another deliverable using the same definition before scaling.")
         for window in labels:
             record = windows[window]
-            rows.append([creator_display(creators, partnership["creator_id"]), content_display(partnership), badge(window, "good"), fmt(record.get("views"), "—"), fmt(record.get("clicks"), "—"), fmt(record.get("downloads"), "—"), fmt(record.get("installs"), "—"), fmt(record.get("activated_users"), "—"), spend_value(record), cost_value(record, "downloads"), cost_value(record, "installs"), ratio(record.get("downloads"), record.get("clicks")), ratio(record.get("installs"), record.get("downloads")), fmt(record.get("verification_status"))])
+            rows.append([creator_display(creators, partnership["creator_id"]), content_display(partnership), badge(window, "good"), fmt(record.get("views"), "N/A"), fmt(record.get("clicks"), "N/A"), fmt(record.get("downloads"), "N/A"), fmt(record.get("installs"), "N/A"), fmt(record.get("activated_users"), "N/A"), spend_value(record), cost_value(record, "downloads"), cost_value(record, "installs"), ratio(record.get("downloads"), record.get("clicks")), ratio(record.get("installs"), record.get("downloads")), fmt(record.get("verification_status"), "N/A")])
             scope = (window, record.get("attribution_source", "").strip(), record.get("metric_definition", "").strip(), record.get("currency", "").strip())
             if all(scope) and record.get("verification_status") in {"Verified", "User provided", "Illustrative"}:
                 comparison_groups[scope].append((creator, partnership, record))
@@ -598,25 +703,37 @@ def performance_dashboard(data, source=None, *, fixture=False):
             conversion = installs/downloads*100 if downloads not in {None, 0} and installs is not None else 0
             cpd, cpi = cost_value(record, "downloads"), cost_value(record, "installs")
             chart_items.append((creator["name"], conversion, f"CPD {cpd} · CPI {cpi}", CHART_COLORS[len(chart_items) % len(CHART_COLORS)]))
-            comparison_rows.append([badge(window, "good"), creator_display(creators, partnership["creator_id"]), content_display(partnership), fmt(record.get("downloads"), "—"), fmt(record.get("installs"), "—"), cpd, cpi, fmt(attribution), fmt(definition)])
+            comparison_rows.append([badge(window, "good"), creator_display(creators, partnership["creator_id"]), content_display(partnership), fmt(record.get("downloads"), "N/A"), fmt(record.get("installs"), "N/A"), cpd, cpi, fmt(attribution), fmt(definition)])
         comparison_panels.append(f'<div class="chart-panel"><h3>{escape(window)} · {escape(currency)}</h3>{horizontal_bars(chart_items, aria_label=f"{window} creator conversion comparison", empty_message="No comparable outcomes.", suffix="%", scale_max=100)}<p class="chart-note">Like-for-like only: {escape(attribution)} · {escape(definition)}.</p></div>')
-    scopes, currencies, spend_values, downloads_values, installs_values = set(), set(), [], [], []
-    comparable = bool(latest_records)
+    outcome_scopes, currencies = set(), set()
+    spend_values, downloads_values, installs_values = [], [], []
+    trusted_outcomes = bool(latest_records)
     for _, _, record in latest_records:
         spend = number(record.get("spend"), "spend", allow_blank=True)
         downloads = number(record.get("downloads"), "downloads", allow_blank=True)
         installs = number(record.get("installs"), "installs", allow_blank=True)
         currency = record.get("currency", "").strip()
-        scope = (record.get("window", ""), record.get("attribution_source", ""), record.get("metric_definition", ""), currency)
-        if None in {spend, downloads, installs} or not all(scope) or record.get("verification_status") not in {"Verified", "User provided", "Illustrative"}:
-            comparable = False
+        outcome_scope = (record.get("window", ""),)
+        if not all(outcome_scope) or record.get("verification_status") not in {"Verified", "User provided", "Illustrative"}:
+            trusted_outcomes = False
         else:
-            spend_values.append(spend); downloads_values.append(downloads); installs_values.append(installs); currencies.add(currency); scopes.add(scope)
-    comparable = comparable and len(scopes) == 1 and len(currencies) == 1 and len(spend_values) == len(latest_records)
-    total_spend = f"{next(iter(currencies))} {sum(spend_values):,.0f}" if comparable else "N/A"
-    total_downloads = f"{sum(downloads_values):,.0f}" if comparable else "N/A"
-    total_installs = f"{sum(installs_values):,.0f}" if comparable else "N/A"
-    total_conversion = ratio(sum(installs_values), sum(downloads_values)) if comparable else "N/A"
+            outcome_scopes.add(outcome_scope)
+        if spend is not None and currency:
+            spend_values.append(spend)
+            currencies.add(currency)
+        if downloads is not None:
+            downloads_values.append(downloads)
+        if installs is not None:
+            installs_values.append(installs)
+    like_for_like = trusted_outcomes and len(outcome_scopes) == 1
+    spend_ready = like_for_like and len(spend_values) == len(latest_records) and len(currencies) == 1
+    downloads_ready = like_for_like and len(downloads_values) == len(latest_records)
+    installs_ready = like_for_like and len(installs_values) == len(latest_records)
+    conversion_ready = downloads_ready and installs_ready
+    total_spend = f"{next(iter(currencies))} {sum(spend_values):,.0f}" if spend_ready else "N/A"
+    total_downloads = f"{sum(downloads_values):,.0f}" if downloads_ready else "N/A"
+    total_installs = f"{sum(installs_values):,.0f}" if installs_ready else "N/A"
+    total_conversion = ratio(sum(installs_values), sum(downloads_values)) if conversion_ready else "N/A"
     kpis = "".join([f'<section class="card quarter"><div class="label">Total recorded spend</div><div class="metric">{escape(total_spend)}</div></section>', f'<section class="card quarter"><div class="label">Total downloads</div><div class="metric">{escape(total_downloads)}</div></section>', f'<section class="card quarter"><div class="label">Total installs</div><div class="metric">{escape(total_installs)}</div></section>', f'<section class="card quarter"><div class="label">Download → install</div><div class="metric">{escape(total_conversion)}</div></section>'])
     insight_items = "".join(f"<li>{escape(item)}</li>" for item in insights) or "<li>Add local performance data after a deliverable is published.</li>"
     body = f'''<div class="grid">{kpis}</div><section class="grid"><div class="card wide"><h2>Cumulative outcome trends</h2><p class="muted">D7, D14 and D30 are separate cumulative snapshots and are never added together.</p><div class="chart-stack">{"".join(trend_panels) or '<div class="empty">No eligible D7, D14 or D30 measurements yet.</div>'}</div></div></section><section class="grid"><div class="card wide"><h2>Creator efficiency comparison</h2><div class="chart-stack">{"".join(comparison_panels) or '<div class="empty">Two or more deliverables need the same window, metric definition, attribution source and currency.</div>'}</div></div></section><section class="grid"><div class="card wide"><h2>Cumulative performance windows</h2>{table(['Creator','Published content','Window','Views','Clicks','Downloads','Installs','Activated','Spend','CPD','CPI','Click → download','Download → install','Evidence'], rows, 'No performance records yet. Import local results after publication; UTM is optional.')}</div></section><section class="grid"><div class="card wide"><h2>Comparable results</h2>{table(['Window','Creator','Published content','Downloads','Installs','CPD','CPI','Attribution','Metric definition'], comparison_rows, 'Insufficient like-for-like data for comparison.')}</div></section><section class="grid"><div class="card half"><h2>Insights / Next Actions</h2><ul>{insight_items}</ul></div><div class="card half"><h2>How to read this</h2><p>Cost and conversion metrics appear only when the observation window, source, definition and currency are clear. UTM links can be recorded as a reference, but are not required for local results.</p></div></section><p class="muted">Source files: <span class="path">{source_path_label(source)}/outreach-progress.csv</span> and <span class="path">{source_path_label(source)}/performance.csv</span>.</p>'''
