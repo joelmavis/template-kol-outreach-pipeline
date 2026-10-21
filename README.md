@@ -1,6 +1,6 @@
 # Creator Outreach Pipeline
 
-Creator Outreach Pipeline is a local-first, Agent-driven workflow for building a YouTube creator database from your own files, selecting the right channels in natural language, managing outreach and collaboration, and reviewing post-publication results.
+Creator Outreach Pipeline is a local-first, Agent-driven workflow for building a YouTube creator database from your instructions or your own files, selecting the right channels in natural language, managing outreach and collaboration, and reviewing post-publication results.
 
 Open this folder in puppyone Desktop and say:
 
@@ -15,9 +15,12 @@ You do not need to edit CSV files or create folders manually. The Agent reads th
 - `04-tools/` — local import, validation and Dashboard utilities.
 - `05-tests/` — isolated fictional fixtures and automated checks; not part of the starting workspace.
 
-## Start from a local table
+## Two ways to start
 
-The preferred input is a CSV or XLSX creator table. Existing exports, internal lists and manually maintained spreadsheets are all valid starting points.
+- **Agent-created database:** describe the creators and collaboration goal in natural language. The Agent creates the local structure and records only information it can support.
+- **Local files:** attach a CSV, XLSX, Markdown brief, or other readable local material. Existing exports, internal lists and manually maintained spreadsheets are valid starting points.
+
+Pasting a product, creator, or channel URL is not a third input mode. Channel and content URLs may still be stored as identifiers or evidence references when they already appear in user-provided data or recorded research, but the workflow does not depend on reading a supplied URL.
 
 Examples:
 
@@ -32,7 +35,7 @@ If a supplied table does not contain every standard field, the import still succ
 
 ## The five-step workflow
 
-1. **Creator Database** — import local CSV/XLSX tables, map fields, deduplicate by channel URL and continue in batches.
+1. **Creator Database** — create records from the user's instructions or import local CSV/XLSX tables, map fields, deduplicate by channel URL when present, and continue in batches.
 2. **Natural-language filtering** — describe the audience size, content direction, region, language, contactability or recent activity you need. The Agent explains the applied criteria and synchronises only the selected channels to outreach.
 3. **Outreach** — create personalised drafts, then record real contact, replies and follow-ups only after they occur.
 4. **Collaboration** — keep relationship status in `outreach-progress.csv` and detailed working history in one creator folder containing negotiation, pricing and contract-draft notes.

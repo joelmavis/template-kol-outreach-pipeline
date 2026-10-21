@@ -265,7 +265,8 @@ class PipelineV3Tests(unittest.TestCase):
         _, data = load_workspace(WORKSPACE)
         creator_html = creator_database_dashboard(data, WORKSPACE)
         outreach_html = outreach_dashboard(data, WORKSPACE)
-        self.assertIn("Upload a local CSV or XLSX", creator_html)
+        self.assertIn("Describe what you need or attach a local CSV/XLSX file", creator_html)
+        self.assertIn("URLs are reference fields, not an input mode", creator_html)
         self.assertIn("Ask the Agent to filter", outreach_html)
 
     def test_29_actual_style_chinese_headers_map_without_legacy_priority(self):

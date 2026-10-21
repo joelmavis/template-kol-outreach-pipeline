@@ -8,7 +8,7 @@ Release remains conditional on the listed puppyone Desktop manual checks.
 
 ## What changed
 
-- Replaced discovery-first onboarding with local CSV/XLSX import as the primary entry.
+- Replaced discovery-first onboarding with two local-first entries: natural-language instructions or local files. Pasted URLs are not an input mode.
 - Added bilingual field mapping, deterministic IDs, source-row provenance, extra-field preservation and incremental non-destructive merging.
 - Removed the legacy numeric prioritisation configuration, fields, charts and workflow dependency.
 - Added natural-language filter rules and a clear “Selected / To Contact” starting state.

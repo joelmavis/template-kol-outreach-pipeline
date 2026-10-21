@@ -2,7 +2,7 @@
 
 ## 1. Import and maintain the Creator Database
 
-Start from a local CSV or XLSX table whenever possible. Read the header, map recognisable fields into `creators.csv`, keep useful unmapped fields in `additional_data_json`, and preserve the source filename and row number.
+Start from one of two local-first inputs: the user's natural-language instructions or a readable local file. For a local CSV or XLSX table, read the header, map recognisable fields into `creators.csv`, keep useful unmapped fields in `additional_data_json`, and preserve the source filename and row number. Do not introduce pasted URLs as a separate starting path.
 
 Minimum viable row:
 
@@ -10,6 +10,8 @@ Minimum viable row:
 - Channel name
 
 Add channel URL, public source, checked date and supplementary fields when they are available. A missing subscriber count, email, average view count or country must not block the row.
+
+URLs already present in imported or recorded data are reference fields. Their presence does not mean the Agent accessed the linked page, and the workflow must remain usable without URL reading.
 
 Treat completeness as field coverage only. Do not present it as proof that a channel or metric was externally verified, and do not require external verification before filtering or outreach preparation.
 
