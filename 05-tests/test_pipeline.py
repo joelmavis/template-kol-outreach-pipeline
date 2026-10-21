@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("pipeline", ROOT / "04-tools/pipeline.py")
 pipeline = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pipeline)
-EXAMPLE = ROOT / "02-examples/sample-creator-campaign"
+FIXTURE = ROOT / "05-tests/fixtures/sample-creator-campaign"
 
 
 def read_rows(path):
@@ -24,9 +24,9 @@ def read_rows(path):
 class PipelineTests(unittest.TestCase):
     def setUp(self):
         self.config = pipeline.load_config()
-        with (EXAMPLE / "creators.csv").open(encoding="utf-8", newline="") as stream:
+        with (FIXTURE / "creators.csv").open(encoding="utf-8", newline="") as stream:
             self.creator_fields = next(csv.reader(stream))
-        self.creators = read_rows(EXAMPLE / "creators.csv")
+        self.creators = read_rows(FIXTURE / "creators.csv")
 
     def rated(self, rating):
         row = dict(self.creators[0])
@@ -37,10 +37,10 @@ class PipelineTests(unittest.TestCase):
         row["verification_status"] = "Verified"
         return row
 
-    def temp_example(self):
+    def temp_fixture(self):
         holder = tempfile.TemporaryDirectory()
         target = Path(holder.name) / "campaign"
-        shutil.copytree(EXAMPLE, target)
+        shutil.copytree(FIXTURE, target)
         return holder, target
 
     def temp_public_copy(self):
@@ -59,7 +59,7 @@ class PipelineTests(unittest.TestCase):
                 fields = next(csv.reader(stream))
             with (workspace / filename).open("w", encoding="utf-8", newline="") as stream:
                 csv.writer(stream).writerow(fields)
-        shutil.copytree(ROOT / "02-examples", target / "02-examples")
+        shutil.copytree(ROOT / "05-tests/fixtures", target / "05-tests/fixtures")
         (target / "README.md").write_text("# Public release fixture\n", encoding="utf-8")
         _, data = pipeline.load_workspace(workspace)
         (target / "creator-database-dashboard.html").write_text(pipeline.creator_database_dashboard(data, workspace), encoding="utf-8")
@@ -174,21 +174,21 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("&lt;script&gt;", html)
 
     def test_07_build_outputs_exactly_three_dashboards(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         output = Path(holder.name) / "out"
-        rendered = pipeline.build(source, output, example=True)
+        rendered = pipeline.build(source, output, fixture=True)
         self.assertEqual(set(rendered), {"creator-database-dashboard.html", "outreach-dashboard.html", "performance-dashboard.html"})
         self.assertEqual({p.name for p in output.glob("*.html")}, set(rendered))
 
     def test_08_drafts_do_not_create_outreach_or_events(self):
-        _, data = pipeline.load_workspace(EXAMPLE)
-        self.assertTrue((EXAMPLE / "drafts/C-EX-001.md").exists())
+        _, data = pipeline.load_workspace(FIXTURE)
+        self.assertTrue((FIXTURE / "drafts/C-EX-001.md").exists())
         self.assertFalse(any(row["creator_id"] == "C-EX-001" and row["event_type"] == "Sent" for row in data["events"]))
         self.assertEqual(next(row for row in data["outreach"] if row["creator_id"] == "C-EX-001")["current_status"], "Drafted")
 
     def test_09_duplicate_event_id_fails(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         rows = self.progress_rows(source, "activity")
         rows.append(dict(rows[0]))
@@ -197,14 +197,14 @@ class PipelineTests(unittest.TestCase):
             pipeline.load_workspace(source)
 
     def test_10_multiple_offers_are_preserved(self):
-        _, data = pipeline.load_workspace(EXAMPLE)
+        _, data = pipeline.load_workspace(FIXTURE)
         offers = [row for row in data["offers"] if row["creator_id"] == "C-EX-002"]
         self.assertEqual(len(offers), 3)
         self.assertEqual(len({row["offer_id"] for row in offers}), 3)
         self.assertEqual(len({(row["collaboration_type"], row["payment_terms"]) for row in offers}), 3)
 
     def test_11_confirmed_is_not_published(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         rows = self.progress_rows(source, "partnership")
         rows[0]["status"] = "Confirmed"
@@ -214,7 +214,7 @@ class PipelineTests(unittest.TestCase):
         pipeline.load_workspace(source)
 
     def test_12_performance_requires_published_deliverable(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         partnerships = self.progress_rows(source, "partnership")
         partnerships[1]["status"] = "Confirmed"
@@ -224,7 +224,7 @@ class PipelineTests(unittest.TestCase):
             pipeline.load_workspace(source)
 
     def test_13_cumulative_metrics_cannot_decrease(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         rows = read_rows(source / "performance.csv")
         rows[1]["clicks"] = "1"
@@ -233,10 +233,10 @@ class PipelineTests(unittest.TestCase):
             pipeline.load_workspace(source)
 
     def test_14_dashboard_matches_csv_relationships(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         output = Path(holder.name) / "out"
-        pipeline.build(source, output, example=True)
+        pipeline.build(source, output, fixture=True)
         outreach = (output / "outreach-dashboard.html").read_text(encoding="utf-8")
         performance = (output / "performance-dashboard.html").read_text(encoding="utf-8")
         self.assertIn("Workflow Weekly", outreach)
@@ -245,25 +245,25 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("D30", performance)
         self.assertNotIn("Workflow Weekly", performance)
 
-    def test_15_example_marking_and_paths_are_visible(self):
-        _, data = pipeline.load_workspace(EXAMPLE)
-        html = pipeline.creator_database_dashboard(data, EXAMPLE, example=True)
-        self.assertIn("Example · Illustrative data and fictional creators", html)
-        self.assertIn("02-examples/sample-creator-campaign/creators.csv", html)
+    def test_15_fixture_marking_and_paths_are_visible(self):
+        _, data = pipeline.load_workspace(FIXTURE)
+        html = pipeline.creator_database_dashboard(data, FIXTURE, fixture=True)
+        self.assertIn("Test fixture · Illustrative data and fictional creators", html)
+        self.assertIn("05-tests/fixtures/sample-creator-campaign/creators.csv", html)
 
     def test_16_cli_runs_from_another_directory(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         output = Path(holder.name) / "out"
         result = subprocess.run([
             sys.executable, str(ROOT / "04-tools/build_dashboards.py"),
-            "--source", str(source), "--output", str(output), "--example",
+            "--source", str(source), "--output", str(output), "--fixture",
         ], cwd=holder.name, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((output / "performance-dashboard.html").exists())
 
     def test_17_performance_creator_must_match_partnership(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         rows = read_rows(source / "performance.csv")
         rows[0]["creator_id"] = "C-EX-001"
@@ -272,7 +272,7 @@ class PipelineTests(unittest.TestCase):
             pipeline.load_workspace(source)
 
     def test_18_offer_must_belong_to_same_creator(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         rows = self.progress_rows(source, "partnership")
         rows[1]["offer_id"] = "OFF-EX-001"
@@ -281,7 +281,7 @@ class PipelineTests(unittest.TestCase):
             pipeline.load_workspace(source)
 
     def test_19_offer_must_belong_to_same_collaboration(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         offers = self.progress_rows(source, "offer")
         offers[-1]["collaboration_id"] = "COL-EX-OTHER"
@@ -290,7 +290,7 @@ class PipelineTests(unittest.TestCase):
             pipeline.load_workspace(source)
 
     def test_20_measurement_before_publication_fails(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         rows = read_rows(source / "performance.csv")
         rows[0]["measured_at"] = "2026-08-13T12:00:00Z"
@@ -299,7 +299,7 @@ class PipelineTests(unittest.TestCase):
             pipeline.load_workspace(source)
 
     def test_21_performance_publication_date_must_match_partnership(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         rows = read_rows(source / "performance.csv")
         rows[0]["published_at"] = "2026-08-15T13:00:00Z"
@@ -308,7 +308,7 @@ class PipelineTests(unittest.TestCase):
             pipeline.load_workspace(source)
 
     def test_22_measurement_window_uses_utc_calendar_date(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         rows = read_rows(source / "performance.csv")
         rows[0]["measured_at"] = "2026-08-22T00:10:00+00:00"
@@ -317,7 +317,7 @@ class PipelineTests(unittest.TestCase):
             pipeline.load_workspace(source)
 
     def test_23_confirmation_must_precede_publication(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         rows = self.progress_rows(source, "partnership")
         rows[1]["confirmed_at"] = "2026-08-15T13:00:00Z"
@@ -351,8 +351,8 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("Follower metric source", result["missing_evidence"])
 
     def test_27_performance_dashboard_shows_spend_and_costs(self):
-        _, data = pipeline.load_workspace(EXAMPLE)
-        html = pipeline.performance_dashboard(data, example=True)
+        _, data = pipeline.load_workspace(FIXTURE)
+        html = pipeline.performance_dashboard(data, fixture=True)
         self.assertIn("USD 1,800", html)
         self.assertIn("USD 5.98", html)
         self.assertIn("USD 9.09", html)
@@ -372,7 +372,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(pipeline.cost_value(dict(zero, downloads="10"), "downloads", tracking_verified=False), "N/A")
 
     def test_29_like_for_like_comparison_rejects_different_attribution(self):
-        _, data = pipeline.load_workspace(EXAMPLE)
+        _, data = pipeline.load_workspace(FIXTURE)
         data = copy.deepcopy(data)
         partnership = dict(data["partnerships"][1])
         partnership.update(collaboration_id="COL-EX-ALT", deliverable_id="DEL-EX-ALT", creator_id="C-EX-001", offer_id="")
@@ -380,11 +380,11 @@ class PipelineTests(unittest.TestCase):
         record = dict(data["performance"][1])
         record.update(collaboration_id="COL-EX-ALT", deliverable_id="DEL-EX-ALT", creator_id="C-EX-001", attribution_source="Different source")
         data["performance"].append(record)
-        html = pipeline.performance_dashboard(data, example=True)
+        html = pipeline.performance_dashboard(data, fixture=True)
         self.assertIn("Insufficient data for a like-for-like comparison", html)
 
     def test_30_like_for_like_comparison_accepts_matching_scope(self):
-        _, data = pipeline.load_workspace(EXAMPLE)
+        _, data = pipeline.load_workspace(FIXTURE)
         data = copy.deepcopy(data)
         partnership = dict(data["partnerships"][1])
         partnership.update(collaboration_id="COL-EX-ALT", deliverable_id="DEL-EX-ALT", creator_id="C-EX-001", offer_id="")
@@ -392,7 +392,7 @@ class PipelineTests(unittest.TestCase):
         record = dict(data["performance"][1])
         record.update(collaboration_id="COL-EX-ALT", deliverable_id="DEL-EX-ALT", creator_id="C-EX-001")
         data["performance"].append(record)
-        html = pipeline.performance_dashboard(data, example=True)
+        html = pipeline.performance_dashboard(data, fixture=True)
         self.assertNotIn("Insufficient data for a like-for-like comparison", html)
         self.assertIn("Frame by Frame Lab", html)
 
@@ -404,7 +404,7 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(date_only.isoformat(), "2026-08-14T00:00:00+00:00")
 
     def test_32_performance_utm_campaign_must_match_partnership(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         rows = read_rows(source / "performance.csv")
         rows[0]["utm_url"] = rows[0]["utm_url"].replace("utm_campaign=focus-week", "utm_campaign=wrong-campaign")
@@ -413,7 +413,7 @@ class PipelineTests(unittest.TestCase):
             pipeline.load_workspace(source)
 
     def test_33_performance_utm_creator_must_match_partnership(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         rows = read_rows(source / "performance.csv")
         rows[0]["utm_url"] = rows[0]["utm_url"].replace("utm_content=C-EX-003", "utm_content=C-EX-001")
@@ -422,7 +422,7 @@ class PipelineTests(unittest.TestCase):
             pipeline.load_workspace(source)
 
     def test_34_cumulative_spend_cannot_decrease_without_reason(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         rows = read_rows(source / "performance.csv")
         rows[1]["spend"] = "900"
@@ -431,7 +431,7 @@ class PipelineTests(unittest.TestCase):
             pipeline.load_workspace(source)
 
     def test_35_documented_spend_adjustment_is_allowed_and_used(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         rows = read_rows(source / "performance.csv")
         rows[1]["spend"] = "900"
@@ -439,11 +439,11 @@ class PipelineTests(unittest.TestCase):
         rows[2]["spend"] = "900"
         self.write_rows(source / "performance.csv", rows)
         _, data = pipeline.load_workspace(source)
-        html = pipeline.performance_dashboard(data, example=True)
+        html = pipeline.performance_dashboard(data, fixture=True)
         self.assertIn("USD 900", html)
 
     def test_36_spend_requires_cumulative_definition(self):
-        holder, source = self.temp_example()
+        holder, source = self.temp_fixture()
         self.addCleanup(holder.cleanup)
         rows = read_rows(source / "performance.csv")
         rows[0]["metric_definition"] = "Single-period spend"
@@ -483,15 +483,15 @@ class PipelineTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Potential unredacted commercial terms", result.stderr)
 
-    def test_40_workspace_and_example_expose_exactly_three_tables(self):
+    def test_40_workspace_and_fixture_expose_exactly_three_tables(self):
         expected = {"creators.csv", "outreach-progress.csv", "performance.csv"}
         self.assertEqual({path.name for path in (ROOT / "01-workspace").glob("*.csv")}, expected)
-        self.assertEqual({path.name for path in EXAMPLE.glob("*.csv")}, expected)
-        record_types = {row["record_type"] for row in read_rows(EXAMPLE / "outreach-progress.csv")}
+        self.assertEqual({path.name for path in FIXTURE.glob("*.csv")}, expected)
+        record_types = {row["record_type"] for row in read_rows(FIXTURE / "outreach-progress.csv")}
         self.assertEqual(record_types, {"outreach", "activity", "offer", "partnership"})
 
     def test_41_top_level_workflow_directories_are_ordered(self):
-        expected = {"01-workspace", "02-examples", "03-config", "04-tools", "05-tests"}
+        expected = {"01-workspace", "03-config", "04-tools", "05-tests"}
         self.assertTrue(all((ROOT / name).is_dir() for name in expected))
         self.assertFalse(any((ROOT / name).exists() for name in {"workspace", "example", "scripts", "tests", "01-kol-profile-and-scoring"}))
 
@@ -525,8 +525,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(len(read_rows(workspace / "creators.csv")), 10)
 
     def test_44_creator_database_dashboard_shows_actual_database_metrics(self):
-        _, data = pipeline.load_workspace(EXAMPLE)
-        html = pipeline.creator_database_dashboard(data, EXAMPLE, example=True)
+        _, data = pipeline.load_workspace(FIXTURE)
+        html = pipeline.creator_database_dashboard(data, FIXTURE, fixture=True)
         self.assertIn("Creator database", html)
         self.assertIn('aria-label="A B C D creator score tier distribution"', html)
         self.assertIn('aria-label="Creator subscriber count band distribution"', html)
@@ -535,18 +535,21 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("Quiet Metrics Studio", html)
 
     def test_45_outreach_charts_use_creator_and_progress_rows(self):
-        _, data = pipeline.load_workspace(EXAMPLE)
-        html = pipeline.outreach_dashboard(data, EXAMPLE, example=True)
+        _, data = pipeline.load_workspace(FIXTURE)
+        html = pipeline.outreach_dashboard(data, FIXTURE, fixture=True)
         self.assertIn('aria-label="Creator outreach status distribution"', html)
         self.assertIn("<b>Pending</b><small>3 · 60% of total</small>", html)
         self.assertIn("<b>Negotiating</b><small>1 · 20% of total</small>", html)
         self.assertIn('aria-label="A B C D creator tier distribution"', html)
         self.assertIn("Tier A", html)
         self.assertIn("Unscored creators: 1", html)
+        self.assertNotIn("<th>ID</th>", html)
+        self.assertLess(html.index("Workflow Weekly"), html.index("Internal creator ID: C-EX-002"))
+        self.assertLess(html.index("Integrated workflow segment"), html.index("Internal offer ID: OFF-EX-001"))
 
     def test_46_performance_kpis_and_trend_use_latest_snapshot_only(self):
-        _, data = pipeline.load_workspace(EXAMPLE)
-        html = pipeline.performance_dashboard(data, example=True)
+        _, data = pipeline.load_workspace(FIXTURE)
+        html = pipeline.performance_dashboard(data, fixture=True)
         self.assertIn("Total recorded spend", html)
         self.assertIn("USD 1,800", html)
         self.assertNotIn("USD 5,400", html)
@@ -557,6 +560,8 @@ class PipelineTests(unittest.TestCase):
         self.assertIn(">65.8%<", html)
         self.assertIn('aria-label="Quiet Metrics Studio cumulative performance by measurement window"', html)
         self.assertIn("D7 181 · D14 236 · D30 301", html)
+        self.assertLess(html.index("Quiet Metrics Studio"), html.index("Internal creator ID: C-EX-003"))
+        self.assertLess(html.index("Dedicated video"), html.index("Internal deliverable ID: DEL-EX-003"))
 
     def test_47_empty_workspace_uses_chart_empty_states(self):
         _, data = pipeline.load_workspace(ROOT / "01-workspace")
@@ -573,7 +578,7 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("Insufficient data for a like-for-like creator chart", performance)
 
     def test_48_comparison_chart_requires_like_for_like_records(self):
-        _, data = pipeline.load_workspace(EXAMPLE)
+        _, data = pipeline.load_workspace(FIXTURE)
         data = copy.deepcopy(data)
         partnership = dict(data["partnerships"][1])
         partnership.update(collaboration_id="COL-EX-ALT", deliverable_id="DEL-EX-ALT", creator_id="C-EX-001", offer_id="")
@@ -581,12 +586,12 @@ class PipelineTests(unittest.TestCase):
         record = dict(data["performance"][1])
         record.update(collaboration_id="COL-EX-ALT", deliverable_id="DEL-EX-ALT", creator_id="C-EX-001")
         data["performance"].append(record)
-        html = pipeline.performance_dashboard(data, example=True)
+        html = pipeline.performance_dashboard(data, fixture=True)
         self.assertIn('aria-label="D14 creator download to install conversion comparison"', html)
         self.assertIn("CPD USD 7.63 · CPI USD 11.39", html)
 
     def test_49_total_conversion_requires_matching_latest_scopes(self):
-        _, data = pipeline.load_workspace(EXAMPLE)
+        _, data = pipeline.load_workspace(FIXTURE)
         data = copy.deepcopy(data)
         partnership = dict(data["partnerships"][1])
         partnership.update(collaboration_id="COL-EX-ALT", deliverable_id="DEL-EX-ALT", creator_id="C-EX-001", offer_id="")
@@ -594,7 +599,7 @@ class PipelineTests(unittest.TestCase):
         record = dict(data["performance"][1])
         record.update(collaboration_id="COL-EX-ALT", deliverable_id="DEL-EX-ALT", creator_id="C-EX-001")
         data["performance"].append(record)
-        html = pipeline.performance_dashboard(data, example=True)
+        html = pipeline.performance_dashboard(data, fixture=True)
         self.assertIn('Download → install</div><div class="metric">N/A</div>', html)
 
     def test_50_product_brief_discovery_can_save_twenty_creators_in_batches(self):
@@ -658,19 +663,19 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual((result["score"], result["tier"], result["rank"]), ("80.00", "B", "1"))
 
     def test_55_outreach_collaboration_and_performance_regression_after_database_change(self):
-        _, data = pipeline.load_workspace(EXAMPLE)
+        _, data = pipeline.load_workspace(FIXTURE)
         self.assertTrue(data["events"])
         self.assertTrue(data["offers"])
         self.assertTrue(data["partnerships"])
         self.assertTrue(data["performance"])
-        self.assertIn("Workflow Weekly", pipeline.outreach_dashboard(data, EXAMPLE, example=True))
-        self.assertIn("Quiet Metrics Studio", pipeline.performance_dashboard(data, example=True))
+        self.assertIn("Workflow Weekly", pipeline.outreach_dashboard(data, FIXTURE, fixture=True))
+        self.assertIn("Quiet Metrics Studio", pipeline.performance_dashboard(data, fixture=True))
 
     def test_56_v22_has_no_independent_persona_artifacts(self):
         self.assertFalse((ROOT / "01-workspace/persona.md").exists())
-        self.assertFalse((EXAMPLE / "persona.md").exists())
+        self.assertFalse((FIXTURE / "persona.md").exists())
         self.assertFalse((ROOT / "persona-dashboard.html").exists())
-        self.assertFalse((EXAMPLE / "persona-dashboard.html").exists())
+        self.assertFalse((FIXTURE / "persona-dashboard.html").exists())
         self.assertTrue((ROOT / "creator-database-dashboard.html").exists())
 
 

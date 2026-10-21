@@ -3,12 +3,11 @@
 ## Folder order
 
 - `01-workspace/` — the blank private-work starting point.
-- `02-examples/` — the complete fictional creator campaign.
 - `03-config/` — the preserved six-dimension scoring configuration.
 - `04-tools/` — dashboard, validation and release utilities.
-- `05-tests/` — automated workflow and release checks.
+- `05-tests/` — automated workflow checks and isolated fixtures; not part of the starting workspace.
 
-Creator Outreach Pipeline is a ready-to-use YouTube creator database and collaboration workflow. Open this folder in puppyone Desktop and provide either a product or collaboration brief, or one or more YouTube channel links. The Agent can save the first verified batch immediately, continue filling missing public information later, prepare personalised outreach, track real conversations and review published partnership results. Drafts are never treated as sent messages, scores never authorize contact, and missing data is never converted into invented facts. Real work stays in `01-workspace/`; the fictional YouTube campaign in `02-examples/sample-creator-campaign/` shows how every stage fits together.
+Creator Outreach Pipeline is a ready-to-use YouTube creator database and collaboration workflow. Open this folder in puppyone Desktop and provide either a product or collaboration brief, or one or more YouTube channel links. The Agent can save the first verified batch immediately, continue filling missing public information later, prepare personalised outreach, track real conversations and review published partnership results. Drafts are never treated as sent messages, scores never authorize contact, and missing data is never converted into invented facts. Real work stays in `01-workspace/`.
 
 ## Start with one sentence
 
@@ -21,7 +20,7 @@ Then continue naturally:
 - “Start with these five YouTube channel links and build the database from what you can verify.”
 - “Continue from the existing CSV and complete the next batch without overwriting earlier results.”
 - “Prepare individual email and DM drafts for the top five eligible creators. Do not send anything.”
-- “I sent the email to C-0003 today. Record that fact and suggest the next step.”
+- “I sent the email to Workflow Weekly today. Record that fact and suggest the next step.”
 - “This creator offered two packages with different payment terms. Preserve both versions.”
 - “The video went live on 12 November. Create D7, D14 and D30 tracking rows.”
 
@@ -53,16 +52,11 @@ The three HTML dashboards are generated views, not additional data tables.
 
 See `PLAYBOOK.md` for field ownership and transition rules. `AGENTS.md` contains the shared rules every compatible file-based Agent should follow.
 
-## Example campaign
+## Clean starting workspace
 
-`02-examples/sample-creator-campaign/` contains five fictional YouTube creators and demonstrates:
+The three Dashboards start with clear Empty States. Upload product or collaboration material, provide one or more YouTube channel links, or attach an existing creator list; the Agent creates and updates the database without asking you to create folders or edit CSV files manually.
 
-- discovery with missing evidence;
-- verified scoring and unsent personalized drafts;
-- synthetic correspondence and negotiation with multiple offers;
-- a confirmed, published partnership with illustrative D7/D14/D30 data.
-
-All names, accounts, messages, URLs and metrics in the example are illustrative. They do not represent real people or activity and are never copied into `01-workspace/`.
+Maintainer regression data lives only under `05-tests/fixtures/`. It covers discovery, outreach, multiple offers, publication and D7/D14/D30 performance without appearing in the user workspace or root Dashboards.
 
 ## Keep real work private
 
@@ -76,7 +70,7 @@ git status --short -- 01-workspace creator-database-dashboard.html outreach-dash
 git diff -- 01-workspace creator-database-dashboard.html outreach-dashboard.html performance-dashboard.html
 ```
 
-Review every listed change. The release check blocks non-empty tracked workspace tables, collaboration/draft files, stale root dashboards, non-reserved Example contact domains and common sensitive-data patterns across public Markdown, CSV, HTML and JSON files. In an exported ZIP without Git metadata, it reports the Git check as skipped instead of claiming a clean repository. It complements—not replaces—human review of the complete staged diff.
+Review every listed change. The release check blocks non-empty tracked workspace tables, collaboration/draft files, stale root dashboards, non-reserved fixture contact domains and common sensitive-data patterns across public Markdown, CSV, HTML and JSON files. In an exported ZIP without Git metadata, it reports the Git check as skipped instead of claiming a clean repository. It complements—not replaces—human review of the complete staged diff.
 
 ## Two validation modes
 
@@ -91,7 +85,7 @@ End users do not need to run scripts. Maintainers and capable Agents rebuild and
 
 ```sh
 python3 04-tools/build_dashboards.py
-python3 04-tools/build_dashboards.py --source 02-examples/sample-creator-campaign --output 02-examples/sample-creator-campaign --example
+python3 04-tools/build_dashboards.py --source 05-tests/fixtures/sample-creator-campaign --output 05-tests/fixtures/sample-creator-campaign --fixture
 python3 04-tools/import_creator_batch.py path/to/creator-batch.csv
 python3 04-tools/validate_workspace.py
 python3 -m unittest discover -s 05-tests

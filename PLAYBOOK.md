@@ -82,4 +82,6 @@ No transition is automatic. Preserve the supporting event or source for every ex
 
 During normal use, rebuild the dashboards and run `python3 04-tools/validate_workspace.py`. This checks the Creator Database, scoring, IDs, relationships, UTM attribution and cumulative metrics while allowing partial discovery rows and real business records.
 
+Generated HTML must lead with channel names, collaboration formats, communication summaries and published-content labels. Keep creator, offer, collaboration and deliverable IDs available only as secondary traceability details.
+
 `python3 04-tools/check_public_release.py` is not a daily workflow step. It is reserved for maintainers preparing a blank public template in a separate clean checkout or disposable copy. A failure must never be fixed by deleting user records. If the working folder still has a GitHub or GitLab remote, warn the user that real contacts, pricing, messages and generated dashboards may be committed accidentally.

@@ -15,12 +15,12 @@ Creator Outreach Pipeline v2.2 is a conversation-first YouTube creator database,
 - Draft-only authorization gate, append-only activity model, multi-offer support and distinct confirmation/publication states.
 - Per-deliverable cumulative D7/D14/D30 tracking with non-decreasing spend checks and documented refund/correction handling.
 - Spend, cost per download/install, like-for-like comparison and evidence-bounded next actions in the existing Performance Dashboard.
-- One complete campaign containing five fictional creators, individual draft material, negotiation summaries, a published illustrative partnership and three dashboards.
+- One isolated maintainer fixture containing five fictional creators, draft material, negotiation summaries, a published illustrative partnership and three generated test dashboards.
 - Standard-library build/validation scripts and automated tests.
 
 ## Data boundary
 
-The public example contains only fictional identities, reserved `example.com` URLs, synthetic correspondence and illustrative metrics. No internal creator negotiations, real prices, private contact information or collaboration attachments are included. `01-workspace/` is blank. Real use must happen in a separate private working copy outside the public repository because `.gitignore` cannot protect these already-tracked starter files. `04-tools/check_public_release.py` verifies the blank workspace, blank-derived root dashboards, reserved Example domains and public text files before release; exported copies without Git metadata are explicitly reported as skipped for the Git-status step.
+`01-workspace/` and the three root Dashboards are blank. Maintainer regression data is isolated under `05-tests/fixtures/`, uses fictional identities and reserved `example.com` URLs, and never appears in the starting experience. Real use must happen in a separate private working copy outside the public repository because `.gitignore` cannot protect these already-tracked starter files. `04-tools/check_public_release.py` verifies the blank workspace, blank-derived root dashboards, reserved fixture domains and public text files before release; exported copies without Git metadata are explicitly reported as skipped for the Git-status step.
 
 ## Known environment limits
 
@@ -35,10 +35,10 @@ Release only after both dashboard builds, validation, `04-tools/check_public_rel
 ## Previous verification on 2026-10-21
 
 - Blank workspace build: passed; three dashboards generated.
-- Fictional campaign build: passed; three dashboards generated.
-- Data validation: passed for 0-user-data workspace and five-creator example.
+- Isolated fixture build: passed; three dashboards generated for automated verification.
+- Data validation: passed for the empty user workspace and five-creator fixture.
 - Automated tests: 16 passed.
-- Browser review: the three then-current example dashboards rendered successfully in a standard browser.
+- Browser review: the three then-current fixture dashboards rendered successfully in a standard browser.
 - Privacy/branding scan: no internal case names, real channel URLs, Gmail addresses, legacy title or capitalized brand spelling found.
 - `git diff --check`: passed.
 - puppyone Desktop-specific preview behavior and cross-Agent attachment persistence remain explicitly unverified environment capabilities.
@@ -50,9 +50,9 @@ Release only after both dashboard builds, validation, `04-tools/check_public_rel
 - P0 cross-table and time validation: passed.
 - P1 scoring evidence gates: passed; incomplete `Verified` rows lose false certainty and remain unscored until required evidence is present.
 - P1 Performance analysis: passed; spend, CPD, CPI, like-for-like comparison rules and evidence-bounded next actions are present without adding a dashboard.
-- P1 public-data isolation: passed; blank tracked workspace, blank-derived root dashboards, reserved Example domains and a maintainer pre-commit check are enforced.
+- P1 public-data isolation: passed; blank tracked workspace, blank-derived root dashboards, reserved fixture domains and a maintainer pre-commit check are enforced.
 - Automated tests: 31 passed.
-- Standard-browser review: passed for the updated Example Performance Dashboard.
+- Standard-browser review: passed for the updated fixture Performance Dashboard.
 - Privacy, branding and whitespace checks: passed.
 
 Not verified: puppyone Desktop-specific HTML preview, a live campaign with real platform tools, cross-Agent attachment persistence, email/DM delivery and live analytics. These are environment-dependent and are not represented as completed product capabilities.
@@ -65,15 +65,15 @@ Not verified: puppyone Desktop-specific HTML preview, a live campaign with real 
 - Cumulative spend: passed; unexplained decreases are blocked, documented refunds/corrections are accepted, and CPD/CPI use the adjusted cumulative amount.
 - Public release boundary: passed; public Markdown, CSV, HTML and JSON files are scanned for common sensitive-data patterns. A non-Git release copy reports `Skipped — Not a Git Repository`.
 - Automated tests: 43/43 passed at that release stage, including ordered directories, the three-table structure, independent release fixtures and existing negative/exception-path cases.
-- Data/build checks: blank workspace and five-creator fictional Example passed; all three root dashboards and all three Example dashboards were regenerated.
-- Structure: three dashboard types and six scoring dimensions remained unchanged at that stage. The Workspace and Example data layer is intentionally consolidated from seven CSV files to exactly three tables.
+- Data/build checks: blank workspace and five-creator isolated fixture passed; all three root dashboards and all three fixture dashboards were regenerated.
+- Structure: three dashboard types and six scoring dimensions remained unchanged at that stage. The Workspace and fixture data layer is intentionally consolidated from seven CSV files to exactly three tables.
 
 Still requires manual testing in puppyone Desktop: open all three dashboards through the client preview; confirm relative/local navigation behavior; run one complete handoff across different Agents with attachments; confirm permission prompts before real email/DM delivery; and verify a real analytics import against the platform source. No live outreach, delivery or real commercial data was used in this verification.
 
 ## Dashboard visualization update — 2026-10-21
 
 - Automated tests: 49/49 passed, including CSV/config-driven chart values, blank-data Empty States, latest-snapshot KPI totals and like-for-like comparison gating.
-- Dashboard builds: all three blank Workspace dashboards and all three fictional Example dashboards regenerated successfully.
+- Dashboard builds: all three blank Workspace dashboards and all three isolated fixture dashboards regenerated successfully.
 - Browser review: desktop and 600 px-wide layouts passed; chart labels, units, tables and explanatory copy remain readable without external libraries.
 - Release boundary: three data tables, three dashboard files and the six-dimension scoring model remained unchanged.
 - Recommendation: ready for the existing release path, subject to the previously listed puppyone Desktop and live-integration checks.
@@ -84,6 +84,13 @@ Still requires manual testing in puppyone Desktop: open all three dashboards thr
 - Discovery starts directly from product/collaboration inputs or channel/list/CSV inputs and can be saved in batches.
 - `Verified`, `Partial` and `Pending Verification` are distinct. Missing supplementary data is accepted; missing scoring evidence remains Unscored rather than becoming zero.
 - Batch merging preserves prior non-empty evidence and deduplicates normalized channel URLs.
-- The public Example now contains five fictional YouTube creator records using reserved domains; no real creator case or commercial price was added.
+- The isolated fixture contains five fictional YouTube creator records using reserved domains; no real creator case or commercial price was added.
 - The public-release boundary still requires a blank workspace and now blocks legacy Persona files from v2.2 releases.
 - Recommendation: ready after the v2.2 automated, generated-HTML and browser checks recorded in QA.
+
+## Clean-start and name-first update — 2026-10-21
+
+- The public starting workspace and all three root Dashboards contain no preloaded campaign data.
+- Regression data moved to `05-tests/fixtures/`; it remains available to the full automated suite without appearing in the user experience.
+- Dashboard tables lead with channel names, collaboration formats, communication summaries and published-content labels. Stable internal IDs remain secondary.
+- The three-table structure, three Dashboards, six scoring dimensions and downstream workflow remain unchanged.

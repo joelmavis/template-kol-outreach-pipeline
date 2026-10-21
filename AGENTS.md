@@ -39,6 +39,7 @@ These rules apply to the entire project. Explicit user instructions take precede
 - `01-workspace/performance.csv` owns cumulative D7/D14/D30 measurements per deliverable.
 - All joins use stable IDs, never display names alone.
 - HTML files are generated summaries, not sources of truth.
+- User-facing HTML leads with channel names, collaboration formats, communication summaries and published-content labels. Stable IDs remain in CSV/Markdown and appear only as secondary traceability details. If names repeat, add a short platform, channel or collaboration qualifier.
 
 ## Status boundaries
 
@@ -53,14 +54,15 @@ These rules apply to the entire project. Explicit user instructions take precede
 
 - Conversation attachments may not persist across Agents. When access and user authorization allow, save the relevant file or a faithful summary under `01-workspace/collaborations/<creator_id>/`, recording source, version, access date and unresolved items.
 - Do not claim another Agent can access an attachment until that has been tested. Durable summaries and IDs are the fallback.
-- Keep private business material and real creator records in a private copy. The public `02-examples/` contains fictional illustrative data only.
+- Keep private business material and real creator records in a private copy. Maintainer fixture data stays under `05-tests/fixtures/` and must never be copied into `01-workspace/`.
 
 ## Public-template safeguards
 
-- Never add real negotiations, private contact details, credentials, platform exports or user attachments to `02-examples/`.
-- Use reserved `example.com` URLs and clearly fictional identities in examples.
+- Never add real negotiations, private contact details, credentials, platform exports or user attachments to `05-tests/fixtures/`.
+- Use reserved `example.com` URLs and clearly fictional identities in fixtures.
 - Keep exactly three main dashboards: creator database, outreach and performance.
 - Preserve the six scoring dimensions and configured thresholds unless the user explicitly changes them. Re-run tests after any scoring change.
 - `04-tools/check_public_release.py` is Template Release Mode. Run it only when a maintainer explicitly asks to prepare or verify a clean public template release. It is expected to block a real user workspace.
 - Never clear CSV rows, delete business records or remove attachments to satisfy a release check. Prepare releases from a separate clean checkout or disposable copy.
 - Before release, run `python3 -m unittest discover -s 05-tests`, both dashboard builds, `python3 04-tools/validate_workspace.py`, `python3 04-tools/check_public_release.py`, a stale/private-name search, and `git diff --check` in that clean release copy.
+- A blank workspace is valid. Start from natural-language instructions, links or attachments; do not ask the user to create folders or edit CSV files manually.

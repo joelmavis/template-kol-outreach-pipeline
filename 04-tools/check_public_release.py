@@ -57,13 +57,13 @@ def check_root_dashboards(root):
             fail(f"{filename} is stale or was not generated from the blank public workspace")
 
 
-def check_example_domains(root):
-    example = root / "02-examples/sample-creator-campaign"
+def check_fixture_domains(root):
+    fixture = root / "05-tests/fixtures/sample-creator-campaign"
     expected_tables = set(FILES.values())
-    actual_tables = {path.name for path in example.glob("*.csv")}
+    actual_tables = {path.name for path in fixture.glob("*.csv")}
     if actual_tables != expected_tables:
-        fail(f"Example must contain exactly these three tables: {', '.join(sorted(expected_tables))}")
-    for csv_path in example.glob("*.csv"):
+        fail(f"Fixture must contain exactly these three tables: {', '.join(sorted(expected_tables))}")
+    for csv_path in fixture.glob("*.csv"):
         _, rows = read_csv(csv_path)
         for row in rows:
             for field, value in row.items():
@@ -73,9 +73,9 @@ def check_example_domains(root):
                 if field.endswith("_url") or field in {"profile_url", "evidence_url", "metric_source", "business_email_source", "dm_url", "contact_page_url", "content_url", "utm_url"}:
                     host = urlparse(value).hostname
                     if host and host != "example.com" and not host.endswith(".example.com"):
-                        fail(f"Example uses a non-reserved URL in {csv_path.name}:{field}")
+                        fail(f"Fixture uses a non-reserved URL in {csv_path.name}:{field}")
                 if "email" in field and "@" in value and not value.lower().endswith("@example.com"):
-                    fail(f"Example uses a non-reserved email in {csv_path.name}:{field}")
+                    fail(f"Fixture uses a non-reserved email in {csv_path.name}:{field}")
 
 
 def check_public_text_files(root):
@@ -94,7 +94,8 @@ def check_public_text_files(root):
         if SECRET_VALUE_RE.search(text):
             fail(f"Potential credential found in {path.relative_to(root)}")
         relative = path.relative_to(root)
-        if (not relative.parts or relative.parts[0] != "02-examples") and COMMERCIAL_VALUE_RE.search(text):
+        in_fixture = relative.parts[:2] == ("05-tests", "fixtures")
+        if not in_fixture and COMMERCIAL_VALUE_RE.search(text):
             fail(f"Potential unredacted commercial terms found in {relative}")
         for match in EMAIL_RE.finditer(text):
             domain = match.group(1).lower()
@@ -121,12 +122,12 @@ def main(argv=None):
     try:
         check_blank_workspace(root)
         check_root_dashboards(root)
-        check_example_domains(root)
+        check_fixture_domains(root)
         check_public_text_files(root)
     except (OSError, ValueError) as error:
         print(f"BLOCKED: {error}", file=sys.stderr)
         return 1
-    print("OK public-release data boundary: blank workspace, blank-derived root dashboards, reserved example domains, public text scan")
+    print("OK public-release data boundary: blank workspace, blank-derived root dashboards, isolated reserved-domain fixtures, public text scan")
     print("Git status:", git_status(root))
     return 0
 

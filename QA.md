@@ -7,7 +7,7 @@
 - Duplicate stable IDs and normalized YouTube channel URLs are deduplicated or rejected when they conflict.
 - User-controlled content is HTML-escaped.
 - Exactly three dashboard files are generated for each data root.
-- Exactly three CSV data tables are exposed in both `01-workspace/` and the Example: creators, outreach progress and performance.
+- Exactly three CSV data tables are exposed in `01-workspace/` and the isolated fixture: creators, outreach progress and performance.
 - Draft files do not create outreach or activity records.
 - Event IDs are unique and history is never synthesized from current state.
 - Multiple offers for one creator remain separate.
@@ -41,13 +41,13 @@ Normal user work runs the dashboard build, `04-tools/validate_workspace.py`, and
 
 ## Release checks
 
-Only in a separate clean release copy, run both blank-workspace and example builds, validation, `04-tools/check_public_release.py`, tests, `git diff --check`, and a search for real internal case names or private business data. The public example must use reserved domains and visibly state that all data is illustrative. `.gitignore` does not protect tracked workspace CSV/MD or root dashboards; review their `git status` and diff before every public commit. Never clear a user's workspace to make this mode pass.
+Only in a separate clean release copy, run the blank-workspace build, isolated-fixture build, validation, `04-tools/check_public_release.py`, tests, `git diff --check`, and a search for real internal case names or private business data. Fixtures must use reserved domains and never appear in the user workspace or root Dashboards. `.gitignore` does not protect tracked workspace CSV/MD or root dashboards; review their `git status` and diff before every public commit. Never clear a user's workspace to make this mode pass.
 
 ## Latest run — 2026-10-21
 
-- Blank and Example dashboard builds: passed.
+- Blank-workspace and isolated-fixture dashboard builds: passed.
 - Workspace relationship validation: passed.
-- Public-release data boundary: passed; blank workspace, blank-derived root dashboards, reserved Example domains and public Markdown/CSV/HTML/JSON scanning confirmed. Non-Git release copies report the Git check as skipped rather than clean.
+- Public-release data boundary: passed; blank workspace, blank-derived root dashboards, reserved fixture domains and public Markdown/CSV/HTML/JSON scanning confirmed. Non-Git release copies report the Git check as skipped rather than clean.
 - Unit tests: 31 passed, including cross-creator/cross-offer references, timestamp mismatches, early/wrong-window measurements, incomplete scoring evidence, missing/zero cost inputs and attribution-scope comparison.
 - Standard-browser review: updated Performance Dashboard rendered correctly with spend, CPD, CPI, comparable-results empty state and evidence-bounded next actions.
 
@@ -56,9 +56,9 @@ Only in a separate clean release copy, run both blank-workspace and example buil
 - Full automated suite: 43/43 passed.
 - Attribution exceptions: a mismatched `utm_campaign` or creator `utm_content` is blocked before performance data can be used.
 - Spend exceptions: an unexplained cumulative decrease is blocked; a documented adjustment is accepted and the adjusted amount is used by cost metrics.
-- Release exceptions: simulated sensitive text and unredacted labeled commercial terms are blocked, while fictional Example values remain allowed; a release copy without `.git` reports `Skipped — Not a Git Repository`.
-- Blank workspace and fictional Example validation: passed.
-- Root and Example dashboards: regenerated; exactly three dashboard types in each location.
+- Release exceptions: simulated sensitive text and unredacted labeled commercial terms are blocked, while isolated fixture values remain allowed; a release copy without `.git` reports `Skipped — Not a Git Repository`.
+- Blank workspace and isolated fixture validation: passed.
+- Root and fixture dashboards: regenerated; exactly three dashboard types in each location.
 - Data-table consolidation: passed; only `creators.csv`, `outreach-progress.csv` and `performance.csv` remain in each data root.
 - Ordered directories: passed; numbered top-level workflow folders are present and legacy unnumbered paths are absent.
 - Mode separation: 10 populated Creator Database rows pass daily validation and dashboard generation. Release checks run against an independent clean fixture; a populated release fixture is blocked without deleting or reverting its data.
@@ -68,7 +68,7 @@ Only in a separate clean release copy, run both blank-workspace and example buil
 ## Dashboard-visualization verification on 2026-10-21
 
 - Full automated suite: 49/49 passed.
-- Blank workspace and fictional Example validation: passed; all six generated dashboard files were rebuilt.
+- Blank workspace and isolated fixture validation: passed; all six generated dashboard files were rebuilt.
 - Creator Database: score tiers and subscriber bands render from creator rows without changing the scoring model.
 - Outreach: each creator is counted once in the current-stage donut; A/B/C/D bars exclude and separately label unscored creators.
 - Performance: KPIs use the latest snapshot per deliverable, D7/D14/D30 trend lines retain exact values, and creator bars appear only for like-for-like records.
@@ -82,5 +82,11 @@ Only in a separate clean release copy, run both blank-workspace and example buil
 - Channel-link path: five partially verified channel records entered the database without requiring subscriber, email or performance fields.
 - Missing-data path: blank supplementary fields stayed blank, produced no fabricated score and did not interrupt validation.
 - Resume path: normalized duplicate channel URLs merged into the existing stable ID, enriched non-empty fields and preserved prior evidence.
-- Downstream regression: drafts, events, offers, partnerships, UTM attribution and both later dashboards remained valid against the fictional Example.
+- Downstream regression: drafts, events, offers, partnerships, UTM attribution and both later dashboards remained valid against the isolated fixture.
 - External limit: live YouTube search, page accessibility, authenticated metrics and public contact availability still depend on the active Agent and platform access.
+
+## Clean-start and name-first verification — 2026-10-21
+
+- The three root Dashboards contain no preloaded creator, outreach, offer, partnership or performance records and show useful Empty States.
+- Fixture data lives only under `05-tests/fixtures/` and does not appear in the starting workspace or root Dashboards.
+- Channel names precede Creator IDs; collaboration formats precede Offer IDs; communication summaries remain human-readable; published content labels precede Deliverable IDs.
