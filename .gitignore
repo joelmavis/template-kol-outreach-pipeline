@@ -21,3 +21,5 @@ uploads/
 !01-workspace/drafts/.gitkeep
 01-workspace/collaborations/*
 !01-workspace/collaborations/.gitkeep
+01-workspace/imports/*
+!01-workspace/imports/.gitkeep

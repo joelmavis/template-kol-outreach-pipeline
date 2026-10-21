@@ -40,9 +40,17 @@ def check_blank_workspace(root):
         if rows:
             fail(f"Public workspace must be blank: 01-workspace/{filename} has {len(rows)} row(s)")
     if (workspace / "persona.md").exists() or (root / "persona-dashboard.html").exists():
-        fail("Legacy Persona files must not be included in the v2.2 public template")
+        fail("Legacy Persona files must not be included in the v3.0 public template")
     if any(workspace.glob("drafts/*.md")) or any(workspace.glob("collaborations/**/*.md")):
         fail("Public workspace contains drafts or collaboration material")
+    if any(path.is_file() and path.name != ".gitkeep" for path in (workspace / "imports").glob("**/*")):
+        fail("Public workspace contains imported source files")
+    creator_fields, _ = read_csv(workspace / FILES["creators"])
+    removed = {"score", "tier", "rank", "audience_fit", "content_relevance", "engagement_quality", "audience_size_band", "brand_safety", "collaboration_readiness"}
+    if removed.intersection(creator_fields):
+        fail("Legacy scoring fields must not be included in the v3.0 creator table")
+    if (root / "03-config/scoring-config.json").exists():
+        fail("Legacy scoring configuration must not be included in the v3.0 template")
 
 
 def check_root_dashboards(root):
@@ -50,7 +58,7 @@ def check_root_dashboards(root):
     expected = {
         "creator-database-dashboard.html": creator_database_dashboard(data, root / "01-workspace"),
         "outreach-dashboard.html": outreach_dashboard(data, root / "01-workspace"),
-        "performance-dashboard.html": performance_dashboard(data),
+        "performance-dashboard.html": performance_dashboard(data, root / "01-workspace"),
     }
     for filename, content in expected.items():
         if (root / filename).read_text(encoding="utf-8") != content:
@@ -127,7 +135,7 @@ def main(argv=None):
     except (OSError, ValueError) as error:
         print(f"BLOCKED: {error}", file=sys.stderr)
         return 1
-    print("OK public-release data boundary: blank workspace, blank-derived root dashboards, isolated reserved-domain fixtures, public text scan")
+    print("OK public-release data boundary: blank workspace and imports, blank-derived root dashboards, isolated reserved-domain fixtures, public text scan")
     print("Git status:", git_status(root))
     return 0
 

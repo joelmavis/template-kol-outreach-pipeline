@@ -29,7 +29,12 @@ def main(argv=None):
     sources = args.source or [ROOT / "01-workspace", ROOT / "05-tests/fixtures/sample-creator-campaign"]
     for source in sources:
         _, data = load_workspace(source)
-        print(f"OK {source}: {len(data['creators'])} creators, {len(data['events'])} events, {len(data['offers'])} offers, {len(data['performance'])} performance rows")
+        print(
+            f"OK {source}: {len(data['creators'])} creators, "
+            f"{len(data['events'])} communication events, "
+            f"{len(data['partnerships'])} collaborations, "
+            f"{len(data['performance'])} performance rows"
+        )
     if not args.source:
         public_remote_warning(ROOT)
 

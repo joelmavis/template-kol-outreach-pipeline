@@ -1,87 +1,79 @@
 # Creator Outreach Pipeline playbook
 
-## 1. Build and extend the Creator Database
+## 1. Import and maintain the Creator Database
 
-Start immediately from either input:
+Start from a local CSV or XLSX table whenever possible. Read the header, map recognisable fields into `creators.csv`, keep useful unmapped fields in `additional_data_json`, and preserve the source filename and row number.
 
-- **Product-led discovery:** read the product site, collaboration brief, description or accessible attachment; extract only the search constraints needed to find relevant YouTube creators.
-- **Creator-led import:** read YouTube channel URLs, an existing list, CSV or accessible attachment; identify the channels and supplement only public, checkable information.
+Minimum viable row:
 
-Do not create a separate Persona file or wait for Persona confirmation. Write every usable result to `01-workspace/creators.csv`.
+- Creator ID
+- Channel name
 
-### Work in durable batches
+Add channel URL, public source, checked date and supplementary fields when they are available. A missing subscriber count, email, average view count or country must not block the row.
 
-Do not try to discover and complete a large request in one pass. Choose a batch size that fits the available search and page-reading capability, then:
+Import in manageable batches. Deduplicate by channel URL when available, retain prior non-empty values and save after each batch. If an import is interrupted, reopen the current `creators.csv` and continue; never replace the database with only the unfinished batch.
 
-1. Search or read the supplied channels.
-2. Deduplicate by stable Creator ID and normalized channel URL.
-3. Save the batch without erasing previous non-empty evidence. When useful, merge a prepared batch with `python3 04-tools/import_creator_batch.py <batch.csv>`.
-4. Rebuild `creator-database-dashboard.html` and run daily validation.
-5. Report creators saved, Verified records and records that still need completion, then continue from the existing CSV.
+## 2. Filter with natural language
 
-If access fails, keep the completed rows and state the shortfall. Ask for channel URLs, a list or a file instead of restarting or filling the quota with invented accounts.
+The user describes the creators they need. Translate that request into transparent filters over recorded fields, such as:
 
-### Core and supplementary data
+- subscriber range;
+- content category or keyword;
+- language or region;
+- public contact availability;
+- recent activity or specific source fields.
 
-The durable core is Creator ID, channel name, YouTube channel URL, source URL, verification status and last checked date when a check succeeds. Subscriber count, language/country, category, average views, upload frequency, engagement indicators, relevant videos, public email, other contact routes, fit notes and score are supplementary. A blank or `Unknown` value means not yet available; `0` means a verified zero.
+Return the matching channel names and briefly explain why they matched. After the user selects creators, create or update one `outreach` row per creator with `Selected / To Contact`. Do not infer a send, reply or negotiation.
 
-Use these verification states:
+## 3. Prepare and track outreach
 
-- `Verified` — sufficient public evidence supports the record and its score.
-- `Partial` — some facts are confirmed, but supplementary or scoring evidence is incomplete.
-- `Pending Verification` — a reliable channel check has not yet been completed.
+For each selected creator, prepare a separate email and DM draft using only recorded facts. Keep unavailable details explicit; do not fake personalisation.
 
-Rate the preserved six dimensions from 0–5 only when supporting evidence exists:
+Only after a real action occurs:
 
-| Dimension | Weight | Question |
-| --- | ---: | --- |
-| Audience Fit | 30 | Does the creator reach the intended audience described by the user’s product or collaboration input? |
-| Content Relevance | 25 | Does recent content directly support the product and collaboration topic? |
-| Engagement Quality | 20 | Is public engagement substantive and credible for the stated review window? |
-| Audience Size Band | 5 | Does the verified subscriber range fit the stated need? |
-| Brand Safety | 15 | Does reviewed evidence support an acceptable risk profile? |
-| Collaboration Readiness | 5 | Is there verified evidence of an appropriate collaboration route or fit? |
+1. update the creator's current outreach row;
+2. append one `activity` row with date, channel, summary and evidence source;
+3. record the next action and next follow-up date;
+4. rebuild the Outreach Dashboard.
 
-The weighted result remains normalized to 0–100: A ≥ 85, B ≥ 70, C ≥ 50, D < 50. A score requires all six ratings, a checkable evidence URL and a checked date; populated subscriber and public-email values need their own sources. Missing scoring evidence remains `Unscored` and never becomes an artificial zero.
+## 4. Manage collaboration files
 
-## 2. Prepare personalised outreach
+When a creator enters negotiation, create a stable folder under `01-workspace/collaborations/` and copy the three templates:
 
-For each creator the user selects—such as the top 10 eligible records—provide fit rationale, suggested collaboration format, opening angle, one verified content reference, risks, missing evidence and next step. Save one email and DM draft under `01-workspace/drafts/<creator_id>.md`. Missing evidence must remain visible; do not fake personalization.
+- `negotiation-summary.md` — latest state, key facts, open questions and next action;
+- `pricing.md` — every proposal version, payment timing, deliverables and rights;
+- `contract-draft.md` — working terms with an explicit Draft status.
 
-Draft creation must not create or advance an outreach or activity record. Tier D, opted-out and do-not-contact creators are not eligible for batch drafts.
+Keep the current relationship status and collaboration folder path in `outreach-progress.csv`. Keep detailed working history in Markdown. Do not create a complex approval system; only explicit user confirmation changes the status to `Confirmed`.
 
-## 3. Track outreach
+## 5. Import and review performance
 
-`01-workspace/outreach-progress.csv` is the independent relationship-progress table. Only after the user reports a real send, add or update the creator’s single `outreach` row and append a unique `activity` row. Record actual contact route, date, channel, reply, status and next action. Do not generate history from a current state.
+After publication, accept local CSV/XLSX results or a user-provided natural-language update. Match each row to exactly one published collaboration and deliverable.
 
-When the user provides a reply, screenshot, attachment or summary, extract facts and open questions, append the event, update the current row and rebuild the Outreach Dashboard. Suggestions are not sent messages, scheduled reminders or booked meetings.
+Record:
 
-## 4. Manage collaborations
+- D7, D14 or D30 window;
+- measurement date when known;
+- downloads, installs and other supplied cumulative metrics;
+- cumulative spend and currency;
+- attribution source and metric definition;
+- verification state and notes;
+- optional UTM reference.
 
-Keep each package and payment structure as a separate `offer` row; never overwrite earlier versions. Store scope, currency, amount, payment schedule, rights, disclosure, deliverables, timing, evidence and status. Save authorized files or faithful summaries under `01-workspace/collaborations/<creator_id>/`.
-
-Keep `Negotiating`, `Confirmed`, `Published`, `Completed` and `Closed Lost` distinct. Confirmation does not imply publication. Each published deliverable needs its own ID and `published_at` D0. A Performance UTM campaign must match its partnership record; a legitimate cross-campaign use becomes a separate collaboration and deliverable.
-
-## 5. Track and review performance
-
-Add cumulative D7/D14/D30 records only for published deliverables and only from user-provided or inspectable evidence. Dates are normalized to UTC; each window must be measured on D0 + 7, 14 or 30 UTC calendar days.
-
-Record attribution source, metric definition and verification state. Calculate conversion, CPD or CPI only when numerator, denominator, cumulative spend, tracking verification and attribution scope are trustworthy. Cumulative spend normally cannot decrease; a verified refund or correction requires `[Spend adjustment: reason]` in that snapshot’s notes. Compare creators only when window, attribution, metric definition and currency match.
+If the window or source is unclear, keep the record pending rather than calculating a confident result. Cumulative outcomes may not decline. A documented refund or correction may reduce spend only when the notes contain `[Spend adjustment: reason]`.
 
 ## Safe state transitions
 
 ```text
-Discovered → Scored → Drafted → Sent → Replied → Negotiating
+Selected / To Contact → Contacted → Replied → Negotiating
 Negotiating → Confirmed → Published → Completed
 Any active stage → Paused / Opted out / Closed Lost
 ```
 
-No transition is automatic. Preserve the supporting event or source for every external-world status change.
+No transition is automatic. Preserve an activity record or evidence source for every external-world change.
 
-## Validation modes
+## Validation
 
-During normal use, rebuild the dashboards and run `python3 04-tools/validate_workspace.py`. This checks the Creator Database, scoring, IDs, relationships, UTM attribution and cumulative metrics while allowing partial discovery rows and real business records.
+Use `python3 04-tools/validate_workspace.py --source 01-workspace` during normal work. It validates IDs, cross-table relationships, collaboration folder requirements and cumulative performance without requiring a blank workspace.
 
-Generated HTML must lead with channel names, collaboration formats, communication summaries and published-content labels. Keep creator, offer, collaboration and deliverable IDs available only as secondary traceability details.
-
-`python3 04-tools/check_public_release.py` is not a daily workflow step. It is reserved for maintainers preparing a blank public template in a separate clean checkout or disposable copy. A failure must never be fixed by deleting user records. If the working folder still has a GitHub or GitLab remote, warn the user that real contacts, pricing, messages and generated dashboards may be committed accidentally.
+Use `python3 04-tools/check_public_release.py` only in a clean release copy. A public-release failure must never be repaired by deleting the user's records.
