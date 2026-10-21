@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 from pipeline import FILES, ROOT, load_workspace, outreach_dashboard, parse_persona, performance_dashboard, persona_dashboard, read_csv
 
 FORBIDDEN_MARKERS = ("youtube.com/" + "channel/", "@" + "gmail.com")
-PUBLIC_PATHS = ("workspace", "persona-dashboard.html", "outreach-dashboard.html", "performance-dashboard.html")
+PUBLIC_PATHS = ("01-workspace", "persona-dashboard.html", "outreach-dashboard.html", "performance-dashboard.html")
 PUBLIC_TEXT_EXTENSIONS = {".md", ".csv", ".html", ".json"}
 SENSITIVE_LABEL_RE = re.compile(r"\b(?:confidential|internal only|do not share)\b", re.IGNORECASE)
 SECRET_VALUE_RE = re.compile(
@@ -30,11 +30,15 @@ def fail(message):
 
 
 def check_blank_workspace(root):
-    workspace = root / "workspace"
+    workspace = root / "01-workspace"
+    expected_tables = set(FILES.values())
+    actual_tables = {path.name for path in workspace.glob("*.csv")}
+    if actual_tables != expected_tables:
+        fail(f"Public workspace must contain exactly these three tables: {', '.join(sorted(expected_tables))}")
     for filename in FILES.values():
         _, rows = read_csv(workspace / filename)
         if rows:
-            fail(f"Public workspace must be blank: workspace/{filename} has {len(rows)} row(s)")
+            fail(f"Public workspace must be blank: 01-workspace/{filename} has {len(rows)} row(s)")
     _, persona = parse_persona(workspace / "persona.md")
     if persona.get("Status") not in {"Draft", "Needs confirmation"}:
         fail("Public workspace persona must be Draft or Needs confirmation")
@@ -43,10 +47,10 @@ def check_blank_workspace(root):
 
 
 def check_root_dashboards(root):
-    _, data = load_workspace(root / "workspace")
+    _, data = load_workspace(root / "01-workspace")
     expected = {
-        "persona-dashboard.html": persona_dashboard(root / "workspace"),
-        "outreach-dashboard.html": outreach_dashboard(data, root / "workspace"),
+        "persona-dashboard.html": persona_dashboard(root / "01-workspace"),
+        "outreach-dashboard.html": outreach_dashboard(data, root / "01-workspace"),
         "performance-dashboard.html": performance_dashboard(data),
     }
     for filename, content in expected.items():
@@ -55,7 +59,11 @@ def check_root_dashboards(root):
 
 
 def check_example_domains(root):
-    example = root / "example/sample-creator-campaign"
+    example = root / "02-examples/sample-creator-campaign"
+    expected_tables = set(FILES.values())
+    actual_tables = {path.name for path in example.glob("*.csv")}
+    if actual_tables != expected_tables:
+        fail(f"Example must contain exactly these three tables: {', '.join(sorted(expected_tables))}")
     for csv_path in example.glob("*.csv"):
         _, rows = read_csv(csv_path)
         for row in rows:
@@ -87,7 +95,7 @@ def check_public_text_files(root):
         if SECRET_VALUE_RE.search(text):
             fail(f"Potential credential found in {path.relative_to(root)}")
         relative = path.relative_to(root)
-        if (not relative.parts or relative.parts[0] != "example") and COMMERCIAL_VALUE_RE.search(text):
+        if (not relative.parts or relative.parts[0] != "02-examples") and COMMERCIAL_VALUE_RE.search(text):
             fail(f"Potential unredacted commercial terms found in {relative}")
         for match in EMAIL_RE.finditer(text):
             domain = match.group(1).lower()

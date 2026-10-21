@@ -4,7 +4,7 @@ These rules apply to the entire project. Explicit user instructions take precede
 
 ## Begin and continue
 
-1. Read this file, `PLAYBOOK.md`, `workspace/persona.md`, the seven workspace CSV files, relevant creator drafts/materials, and the latest generated dashboards.
+1. Read this file, `PLAYBOOK.md`, `01-workspace/persona.md`, the three workspace CSV files, relevant creator drafts/materials, and the latest generated dashboards.
 2. Treat project files as the durable handoff. Do not rely on prior chat memory.
 3. State which requested capability is unavailable—web research, authenticated platform access, attachment reading, file writing, script execution, email/DM delivery or analytics—and offer the smallest useful fallback.
 4. After an authorized data change, rebuild the three dashboards and run validation when execution is available. If not, update the source files accurately and tell the user what remains stale.
@@ -29,12 +29,11 @@ These rules apply to the entire project. Explicit user instructions take precede
 
 ## Data ownership
 
-- `workspace/creators.csv` owns discovery evidence, six ratings, score, tier and rank.
-- `workspace/outreach.csv` owns one creator’s current outreach/negotiation state.
-- `workspace/activity-log.csv` is append-only history: one real event per row with a stable `event_id`.
-- `workspace/offers.csv` owns offer versions. Keep packages and payment structures as separate `offer_id` rows; do not overwrite an earlier offer.
-- `workspace/partnerships.csv` owns commercial confirmation, deliverables and publication state.
-- `workspace/performance.csv` owns cumulative D7/D14/D30 measurements per deliverable.
+- `01-workspace/creators.csv` owns discovery evidence, six ratings, score, tier and rank.
+- `01-workspace/outreach-progress.csv` is the single relationship-progress table. Its `record_type` is `outreach`, `activity`, `offer` or `partnership`.
+- Keep one `outreach` record per creator for current state. Keep `activity` records append-only, one real event per stable `record_id`.
+- Keep packages and payment structures as separate `offer` records; do not overwrite earlier versions. Use `partnership` records for commercial confirmation, deliverables and publication state.
+- `01-workspace/performance.csv` owns cumulative D7/D14/D30 measurements per deliverable.
 - All joins use stable IDs, never display names alone.
 - HTML files are generated summaries, not sources of truth.
 
@@ -49,14 +48,14 @@ These rules apply to the entire project. Explicit user instructions take precede
 
 ## Attachments and handoff
 
-- Conversation attachments may not persist across Agents. When access and user authorization allow, save the relevant file or a faithful summary under `workspace/collaborations/<creator_id>/`, recording source, version, access date and unresolved items.
+- Conversation attachments may not persist across Agents. When access and user authorization allow, save the relevant file or a faithful summary under `01-workspace/collaborations/<creator_id>/`, recording source, version, access date and unresolved items.
 - Do not claim another Agent can access an attachment until that has been tested. Durable summaries and IDs are the fallback.
-- Keep private business material and real creator records in a private copy. The public `example/` contains fictional illustrative data only.
+- Keep private business material and real creator records in a private copy. The public `02-examples/` contains fictional illustrative data only.
 
 ## Public-template safeguards
 
-- Never add real negotiations, private contact details, credentials, platform exports or user attachments to `example/`.
+- Never add real negotiations, private contact details, credentials, platform exports or user attachments to `02-examples/`.
 - Use reserved `example.com` URLs and clearly fictional identities in examples.
 - Keep exactly three main dashboards: persona, outreach and performance.
 - Preserve the six scoring dimensions and configured thresholds unless the user explicitly changes them. Re-run tests after any scoring change.
-- Before release, run `python3 -m unittest discover tests`, both dashboard builds, `python3 scripts/validate_workspace.py`, `python3 scripts/check_public_release.py`, a stale/private-name search, and `git diff --check`.
+- Before release, run `python3 -m unittest discover -s 05-tests`, both dashboard builds, `python3 04-tools/validate_workspace.py`, `python3 04-tools/check_public_release.py`, a stale/private-name search, and `git diff --check`.

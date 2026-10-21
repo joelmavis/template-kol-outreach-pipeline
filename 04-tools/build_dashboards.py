@@ -7,7 +7,7 @@ from pipeline import ROOT, build
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", type=Path, default=ROOT / "workspace")
+    parser.add_argument("--source", type=Path, default=ROOT / "01-workspace")
     parser.add_argument("--output", type=Path, default=ROOT)
     parser.add_argument("--example", action="store_true")
     args = parser.parse_args(argv)

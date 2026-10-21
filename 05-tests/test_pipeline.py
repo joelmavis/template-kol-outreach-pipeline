@@ -10,10 +10,10 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("pipeline", ROOT / "scripts/pipeline.py")
+spec = importlib.util.spec_from_file_location("pipeline", ROOT / "04-tools/pipeline.py")
 pipeline = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pipeline)
-EXAMPLE = ROOT / "example/sample-creator-campaign"
+EXAMPLE = ROOT / "02-examples/sample-creator-campaign"
 
 
 def read_rows(path):
@@ -54,6 +54,14 @@ class PipelineTests(unittest.TestCase):
             writer = csv.DictWriter(stream, fieldnames=fields)
             writer.writeheader()
             writer.writerows(rows)
+
+    def progress_rows(self, source, record_type):
+        return [row for row in read_rows(source / "outreach-progress.csv") if row["record_type"] == record_type]
+
+    def write_progress_rows(self, source, record_type, rows):
+        path = source / "outreach-progress.csv"
+        retained = [row for row in read_rows(path) if row["record_type"] != record_type]
+        self.write_rows(path, retained + rows)
 
     def test_01_tier_boundaries_and_endpoints(self):
         for rating, tier in [(5, "A"), (4.25, "A"), (4.249, "B"), (3.5, "B"),
@@ -99,7 +107,7 @@ class PipelineTests(unittest.TestCase):
         row["name"] = "<script>alert(1)</script>"
         scored = pipeline.score_creators([row], self.config)
         data = {"creators": scored, "outreach": [], "events": [], "offers": [], "partnerships": [], "performance": []}
-        html = pipeline.outreach_dashboard(data, ROOT / "workspace")
+        html = pipeline.outreach_dashboard(data, ROOT / "01-workspace")
         self.assertNotIn("<script>", html)
         self.assertIn("&lt;script&gt;", html)
 
@@ -120,9 +128,9 @@ class PipelineTests(unittest.TestCase):
     def test_09_duplicate_event_id_fails(self):
         holder, source = self.temp_example()
         self.addCleanup(holder.cleanup)
-        rows = read_rows(source / "activity-log.csv")
+        rows = self.progress_rows(source, "activity")
         rows.append(dict(rows[0]))
-        self.write_rows(source / "activity-log.csv", rows)
+        self.write_progress_rows(source, "activity", rows)
         with self.assertRaises(ValueError):
             pipeline.load_workspace(source)
 
@@ -136,20 +144,20 @@ class PipelineTests(unittest.TestCase):
     def test_11_confirmed_is_not_published(self):
         holder, source = self.temp_example()
         self.addCleanup(holder.cleanup)
-        rows = read_rows(source / "partnerships.csv")
+        rows = self.progress_rows(source, "partnership")
         rows[0]["status"] = "Confirmed"
         rows[0]["confirmed_at"] = "2026-08-15T10:00:00Z"
         rows[0]["published_at"] = ""
-        self.write_rows(source / "partnerships.csv", rows)
+        self.write_progress_rows(source, "partnership", rows)
         pipeline.load_workspace(source)
 
     def test_12_performance_requires_published_deliverable(self):
         holder, source = self.temp_example()
         self.addCleanup(holder.cleanup)
-        partnerships = read_rows(source / "partnerships.csv")
+        partnerships = self.progress_rows(source, "partnership")
         partnerships[1]["status"] = "Confirmed"
         partnerships[1]["published_at"] = ""
-        self.write_rows(source / "partnerships.csv", partnerships)
+        self.write_progress_rows(source, "partnership", partnerships)
         with self.assertRaises(ValueError):
             pipeline.load_workspace(source)
 
@@ -178,14 +186,14 @@ class PipelineTests(unittest.TestCase):
     def test_15_example_marking_and_paths_are_visible(self):
         html = pipeline.persona_dashboard(EXAMPLE, example=True)
         self.assertIn("Example · Illustrative data and fictional creators", html)
-        self.assertIn("example/sample-creator-campaign/persona.md", html)
+        self.assertIn("02-examples/sample-creator-campaign/persona.md", html)
 
     def test_16_cli_runs_from_another_directory(self):
         holder, source = self.temp_example()
         self.addCleanup(holder.cleanup)
         output = Path(holder.name) / "out"
         result = subprocess.run([
-            sys.executable, str(ROOT / "scripts/build_dashboards.py"),
+            sys.executable, str(ROOT / "04-tools/build_dashboards.py"),
             "--source", str(source), "--output", str(output), "--example",
         ], cwd=holder.name, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -203,18 +211,18 @@ class PipelineTests(unittest.TestCase):
     def test_18_offer_must_belong_to_same_creator(self):
         holder, source = self.temp_example()
         self.addCleanup(holder.cleanup)
-        rows = read_rows(source / "partnerships.csv")
+        rows = self.progress_rows(source, "partnership")
         rows[1]["offer_id"] = "OFF-EX-001"
-        self.write_rows(source / "partnerships.csv", rows)
+        self.write_progress_rows(source, "partnership", rows)
         with self.assertRaisesRegex(ValueError, "another creator or collaboration"):
             pipeline.load_workspace(source)
 
     def test_19_offer_must_belong_to_same_collaboration(self):
         holder, source = self.temp_example()
         self.addCleanup(holder.cleanup)
-        offers = read_rows(source / "offers.csv")
+        offers = self.progress_rows(source, "offer")
         offers[-1]["collaboration_id"] = "COL-EX-OTHER"
-        self.write_rows(source / "offers.csv", offers)
+        self.write_progress_rows(source, "offer", offers)
         with self.assertRaisesRegex(ValueError, "another creator or collaboration"):
             pipeline.load_workspace(source)
 
@@ -248,9 +256,9 @@ class PipelineTests(unittest.TestCase):
     def test_23_confirmation_must_precede_publication(self):
         holder, source = self.temp_example()
         self.addCleanup(holder.cleanup)
-        rows = read_rows(source / "partnerships.csv")
+        rows = self.progress_rows(source, "partnership")
         rows[1]["confirmed_at"] = "2026-08-15T13:00:00Z"
-        self.write_rows(source / "partnerships.csv", rows)
+        self.write_progress_rows(source, "partnership", rows)
         with self.assertRaisesRegex(ValueError, "confirmed_at must not be after"):
             pipeline.load_workspace(source)
 
@@ -386,7 +394,7 @@ class PipelineTests(unittest.TestCase):
         with (target / "README.md").open("a", encoding="utf-8") as stream:
             stream.write("\nDO NOT SHARE: simulated commercial terms\n")
         result = subprocess.run([
-            sys.executable, str(ROOT / "scripts/check_public_release.py"), "--root", str(target),
+            sys.executable, str(ROOT / "04-tools/check_public_release.py"), "--root", str(target),
         ], capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Potential confidential text", result.stderr)
@@ -395,7 +403,7 @@ class PipelineTests(unittest.TestCase):
         holder, target = self.temp_public_copy()
         self.addCleanup(holder.cleanup)
         result = subprocess.run([
-            sys.executable, str(ROOT / "scripts/check_public_release.py"), "--root", str(target),
+            sys.executable, str(ROOT / "04-tools/check_public_release.py"), "--root", str(target),
         ], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Git status: Skipped — Not a Git Repository", result.stdout)
@@ -407,10 +415,22 @@ class PipelineTests(unittest.TestCase):
         with (target / "release-notes.md").open("w", encoding="utf-8") as stream:
             stream.write("Creator fee: $900\n")
         result = subprocess.run([
-            sys.executable, str(ROOT / "scripts/check_public_release.py"), "--root", str(target),
+            sys.executable, str(ROOT / "04-tools/check_public_release.py"), "--root", str(target),
         ], capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Potential unredacted commercial terms", result.stderr)
+
+    def test_40_workspace_and_example_expose_exactly_three_tables(self):
+        expected = {"creators.csv", "outreach-progress.csv", "performance.csv"}
+        self.assertEqual({path.name for path in (ROOT / "01-workspace").glob("*.csv")}, expected)
+        self.assertEqual({path.name for path in EXAMPLE.glob("*.csv")}, expected)
+        record_types = {row["record_type"] for row in read_rows(EXAMPLE / "outreach-progress.csv")}
+        self.assertEqual(record_types, {"outreach", "activity", "offer", "partnership"})
+
+    def test_41_top_level_workflow_directories_are_ordered(self):
+        expected = {"01-workspace", "02-examples", "03-config", "04-tools", "05-tests"}
+        self.assertTrue(all((ROOT / name).is_dir() for name in expected))
+        self.assertFalse(any((ROOT / name).exists() for name in {"workspace", "example", "scripts", "tests", "01-kol-profile-and-scoring"}))
 
 
 if __name__ == "__main__":

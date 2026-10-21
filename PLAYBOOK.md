@@ -4,7 +4,7 @@
 
 Collect only the essentials: industry/product, target audience and market, platforms, content types, partnership goal, preferences and exclusions. Ask for budget, language, region, audience size or format only when they affect the result. Record supplied links and readable attachments as sources, and mark assumptions.
 
-Write `workspace/persona.md`, rebuild `persona-dashboard.html`, show the result and ask for confirmation. Record the confirmation state, version and timestamp. Do not begin broad discovery while the status is `Draft` or `Needs confirmation`.
+Write `01-workspace/persona.md`, rebuild `persona-dashboard.html`, show the result and ask for confirmation. Record the confirmation state, version and timestamp. Do not begin broad discovery while the status is `Draft` or `Needs confirmation`.
 
 ## 2. Discover and score creators
 
@@ -25,13 +25,13 @@ The weighted result is normalized to 0–100: A ≥ 85, B ≥ 70, C ≥ 50, D < 
 
 ## 3. Prepare creator-specific outreach
 
-For each user-selected, eligible creator, provide: fit rationale, suggested format, opening angle, one verified content reference, risks, missing evidence and next step. Save an individual email and DM draft under `workspace/drafts/<creator_id>.md`. Missing evidence must remain visible; do not fake personalization.
+For each user-selected, eligible creator, provide: fit rationale, suggested format, opening angle, one verified content reference, risks, missing evidence and next step. Save an individual email and DM draft under `01-workspace/drafts/<creator_id>.md`. Missing evidence must remain visible; do not fake personalization.
 
-Draft creation must not change `outreach.csv` or `activity-log.csv`. Tier D and opted-out creators are not eligible for batch drafts.
+Draft creation must not create or advance `outreach` or `activity` records in `outreach-progress.csv`. Tier D and opted-out creators are not eligible for batch drafts.
 
 ## 4. Record actual outreach
 
-Only after the user reports a real send, add/update the creator’s single row in `outreach.csv` and append a unique event to `activity-log.csv`. Record actual channel, first contact, last contact, DM use, current intent, owner and next action. Do not generate intermediate events from a current status.
+Only after the user reports a real send, add or update the creator’s single `outreach` record in `outreach-progress.csv` and append a unique `activity` record in the same table. Record actual channel, first contact, last contact, DM use, current intent, owner and next action. Do not generate intermediate events from a current status.
 
 ## 5. Follow up continuously
 
@@ -41,7 +41,7 @@ When the user provides a reply, screenshot, attachment or summary, extract facts
 
 Each scope/payment combination gets a separate `offer_id`. Store currency, original and negotiated amount, package scope, payment schedule, deposit percentage, rights, disclosure, deliverables, timing, evidence and status. Multiple versions remain visible.
 
-Save authorized files or faithful summaries in `workspace/collaborations/<creator_id>/`. State whether the source was a readable attachment, user-provided text, public URL or inaccessible reference. Commercial terms and content rights require written confirmation.
+Save authorized files or faithful summaries in `01-workspace/collaborations/<creator_id>/`. State whether the source was a readable attachment, user-provided text, public URL or inaccessible reference. Commercial terms and content rights require written confirmation.
 
 ## 7. Track partnerships and publication
 

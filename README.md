@@ -1,6 +1,14 @@
 # Creator Outreach Pipeline
 
-Creator Outreach Pipeline is a ready-to-use workflow for defining the right creator profile, finding and scoring candidates, preparing personalized outreach, tracking real conversations, and reviewing published partnership results. Open this folder in puppyone Desktop and tell an Agent what you are promoting, who it is for, which platforms matter, and what kind of content you want. The Agent will build a persona for your approval before discovery begins, then keep the workspace and three HTML dashboards up to date. Drafts are never treated as sent messages, and scores never authorize contact. Real work stays in `workspace/`; the complete fictional campaign in `example/sample-creator-campaign/` shows how every stage fits together.
+## Folder order
+
+- `01-workspace/` — the blank private-work starting point.
+- `02-examples/` — the complete fictional creator campaign.
+- `03-config/` — the preserved six-dimension scoring configuration.
+- `04-tools/` — dashboard, validation and release utilities.
+- `05-tests/` — automated workflow and release checks.
+
+Creator Outreach Pipeline is a ready-to-use workflow for defining the right creator profile, finding and scoring candidates, preparing personalized outreach, tracking real conversations, and reviewing published partnership results. Open this folder in puppyone Desktop and tell an Agent what you are promoting, who it is for, which platforms matter, and what kind of content you want. The Agent will build a persona for your approval before discovery begins, then keep the workspace and three HTML dashboards up to date. Drafts are never treated as sent messages, and scores never authorize contact. Real work stays in `01-workspace/`; the complete fictional campaign in `02-examples/sample-creator-campaign/` shows how every stage fits together.
 
 ## Start with one sentence
 
@@ -24,9 +32,19 @@ Then continue naturally:
 
 Each page prints the relevant source-file paths. Links are convenient but are not the only way to navigate in Desktop preview.
 
+## Three data tables
+
+The workspace intentionally exposes only three CSV tables:
+
+- `creators.csv` — screened creators, evidence, six-dimension scores and ranking.
+- `outreach-progress.csv` — relationship progress in one place. Typed rows hold current outreach state, activity history, offer versions and partnership/deliverable records.
+- `performance.csv` — cumulative D7/D14/D30 results for published deliverables.
+
+`persona.md` and the three HTML dashboards remain supporting documents and generated views; they are not additional data tables.
+
 ## The workflow
 
-1. **Persona** — turn a short description, public URL or readable attachment into `workspace/persona.md`; confirm it before discovery.
+1. **Persona** — turn a short description, public URL or readable attachment into `01-workspace/persona.md`; confirm it before discovery.
 2. **Discovery** — find as many candidates as the available evidence supports; never fill a requested quota with invented accounts.
 3. **Scoring and drafts** — score only evidence-ready candidates with the six preserved dimensions; create a separate proposal, email draft and DM opener for each selected creator.
 4. **Outreach** — add a current-state row only after the user reports a real send; append one event for each actual interaction.
@@ -39,23 +57,23 @@ See `PLAYBOOK.md` for field ownership and transition rules. `AGENTS.md` contains
 
 ## Example campaign
 
-`example/sample-creator-campaign/` contains five fictional creators and demonstrates:
+`02-examples/sample-creator-campaign/` contains five fictional creators and demonstrates:
 
 - discovery with missing evidence;
 - verified scoring and unsent personalized drafts;
 - synthetic correspondence and negotiation with multiple offers;
 - a confirmed, published partnership with illustrative D7/D14/D30 data.
 
-All names, accounts, messages, URLs and metrics in the example are illustrative. They do not represent real people or activity and are never copied into `workspace/`.
+All names, accounts, messages, URLs and metrics in the example are illustrative. They do not represent real people or activity and are never copied into `01-workspace/`.
 
 ## Keep real work private
 
-The tracked `workspace/*.csv`, `workspace/persona.md` and three root dashboards are intentionally blank starter files. Because they are already tracked by Git, adding them to `.gitignore` would **not** prevent later business data from being committed.
+The tracked `01-workspace/*.csv`, `01-workspace/persona.md` and three root dashboards are intentionally blank starter files. Because they are already tracked by Git, adding them to `.gitignore` would **not** prevent later business data from being committed.
 
 Before entering real creator or commercial information, make a working copy of this folder outside the public repository—for example, unzip the release into a separate private project folder and open that folder in puppyone. Keep the public repository as the distributable blank template. If a maintainer temporarily tests inside the repository, restore the blank workspace, rebuild the root dashboards and run this review before committing:
 
 ```sh
-python3 scripts/check_public_release.py
+python3 04-tools/check_public_release.py
 git status --short -- workspace persona-dashboard.html outreach-dashboard.html performance-dashboard.html
 git diff -- workspace persona-dashboard.html outreach-dashboard.html performance-dashboard.html
 ```
@@ -67,11 +85,11 @@ Review every listed change. The release check blocks non-empty tracked workspace
 End users do not need to run scripts. Maintainers and capable Agents rebuild and validate the static views with:
 
 ```sh
-python3 scripts/build_dashboards.py
-python3 scripts/build_dashboards.py --source example/sample-creator-campaign --output example/sample-creator-campaign --example
-python3 scripts/validate_workspace.py
-python3 scripts/check_public_release.py
-python3 -m unittest discover tests
+python3 04-tools/build_dashboards.py
+python3 04-tools/build_dashboards.py --source 02-examples/sample-creator-campaign --output 02-examples/sample-creator-campaign --example
+python3 04-tools/validate_workspace.py
+python3 04-tools/check_public_release.py
+python3 -m unittest discover -s 05-tests
 ```
 
 The scripts use only the Python standard library. They do not scrape platforms, send messages, schedule reminders, connect analytics, sign contracts or make payments.

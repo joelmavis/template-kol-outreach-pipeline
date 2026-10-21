@@ -7,7 +7,8 @@ Creator Outreach Pipeline v2.0 upgrades the original KOL scoring template withou
 ## Included
 
 - Exactly three main dashboards: persona, outreach and performance.
-- Blank real-workspace schemas with stable IDs and separate current-state/history tables.
+- Exactly three blank real-workspace tables: screened creators, consolidated outreach progress and performance.
+- The consolidated progress table preserves typed current-state, append-only activity, multi-offer and partnership records with stable IDs.
 - Evidence-aware scoring that leaves incomplete candidates unscored.
 - Cross-table creator, offer, collaboration, deliverable and UTM campaign ownership checks.
 - UTC-normalized confirmation, publication and D7/D14/D30 measurement-window validation.
@@ -19,7 +20,7 @@ Creator Outreach Pipeline v2.0 upgrades the original KOL scoring template withou
 
 ## Data boundary
 
-The public example contains only fictional identities, reserved `example.com` URLs, synthetic correspondence and illustrative metrics. No internal creator negotiations, real prices, private contact information or collaboration attachments are included. `workspace/` is blank. Real use must happen in a separate private working copy outside the public repository because `.gitignore` cannot protect these already-tracked starter files. `scripts/check_public_release.py` verifies the blank workspace, blank-derived root dashboards, reserved Example domains and public text files before release; exported copies without Git metadata are explicitly reported as skipped for the Git-status step.
+The public example contains only fictional identities, reserved `example.com` URLs, synthetic correspondence and illustrative metrics. No internal creator negotiations, real prices, private contact information or collaboration attachments are included. `01-workspace/` is blank. Real use must happen in a separate private working copy outside the public repository because `.gitignore` cannot protect these already-tracked starter files. `04-tools/check_public_release.py` verifies the blank workspace, blank-derived root dashboards, reserved Example domains and public text files before release; exported copies without Git metadata are explicitly reported as skipped for the Git-status step.
 
 ## Known environment limits
 
@@ -29,7 +30,7 @@ The public example contains only fictional identities, reserved `example.com` UR
 
 ## Final gate
 
-Release only after both dashboard builds, validation, `scripts/check_public_release.py`, the full unit-test suite, a stale/private-data search and `git diff --check` pass. Review `git status` and the staged diff for `workspace/` plus the three root dashboards. Record the actual results rather than claiming success from file presence alone.
+Release only after both dashboard builds, validation, `04-tools/check_public_release.py`, the full unit-test suite, a stale/private-data search and `git diff --check` pass. Review `git status` and the staged diff for `01-workspace/` plus the three root dashboards. Record the actual results rather than claiming success from file presence alone.
 
 ## Previous verification on 2026-10-21
 
@@ -63,8 +64,8 @@ Not verified: puppyone Desktop-specific HTML preview, a live eight-step campaign
 - UTM attribution: passed; Performance campaign and optional creator attribution must match the corresponding published partnership. Legitimate cross-campaign work uses a separate collaboration and deliverable.
 - Cumulative spend: passed; unexplained decreases are blocked, documented refunds/corrections are accepted, and CPD/CPI use the adjusted cumulative amount.
 - Public release boundary: passed; public Markdown, CSV, HTML and JSON files are scanned for common sensitive-data patterns. A non-Git release copy reports `Skipped — Not a Git Repository`.
-- Automated tests: 39/39 passed, including the new negative and exception-path cases.
+- Automated tests: 41/41 passed, including ordered directories, the three-table structure and existing negative/exception-path cases.
 - Data/build checks: blank workspace and five-creator fictional Example passed; all three root dashboards and all three Example dashboards were regenerated.
-- Structure: the eight-step workflow, three dashboard types, six scoring dimensions and existing Example structure remain unchanged.
+- Structure: the eight-step workflow, three dashboard types and six scoring dimensions remain unchanged. The Workspace and Example data layer is intentionally consolidated from seven CSV files to exactly three tables.
 
 Still requires manual testing in puppyone Desktop: open all three dashboards through the client preview; confirm relative/local navigation behavior; run one eight-step handoff across different Agents with attachments; confirm permission prompts before real email/DM delivery; and verify a real analytics import against the platform source. No live outreach, delivery or real commercial data was used in this verification.

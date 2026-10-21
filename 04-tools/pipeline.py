@@ -13,18 +13,34 @@ import re
 from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
-CONFIG = ROOT / "01-kol-profile-and-scoring/scoring-config.json"
+CONFIG = ROOT / "03-config/scoring-config.json"
 DIMENSIONS = (
     "audience_fit", "content_relevance", "engagement_quality",
     "audience_size_band", "brand_safety", "collaboration_readiness",
 )
 FILES = {
     "creators": "creators.csv",
-    "outreach": "outreach.csv",
-    "events": "activity-log.csv",
-    "offers": "offers.csv",
-    "partnerships": "partnerships.csv",
+    "progress": "outreach-progress.csv",
     "performance": "performance.csv",
+}
+PROGRESS_TYPES = {"outreach", "activity", "offer", "partnership"}
+PROGRESS_FIELDS = {
+    "outreach": (
+        "creator_id", "current_status", "first_contact_at", "dm_used", "channels",
+        "last_contact_at", "intent", "owner", "next_action", "next_action_at", "opt_out", "source",
+    ),
+    "activity": ("event_id", "creator_id", "event_at", "event_type", "channel", "summary", "source", "recorded_at"),
+    "offer": (
+        "offer_id", "creator_id", "collaboration_id", "offer_version", "collaboration_type",
+        "content_length", "video_count", "currency", "original_amount", "negotiated_amount",
+        "payment_terms", "deposit_percent", "rights", "deliverables", "timing", "updated_at",
+        "selected", "status", "evidence_source",
+    ),
+    "partnership": (
+        "collaboration_id", "creator_id", "deliverable_id", "offer_id", "status", "confirmed_at",
+        "published_at", "completed_at", "content_type", "content_url", "utm_url", "tracking_verified",
+        "owner", "evidence_source",
+    ),
 }
 OUTREACH_STATES = {
     "Discovered", "Scored", "Drafted", "Planned", "Sent", "Replied",
@@ -92,9 +108,29 @@ def read_csv(path):
 
 def write_csv(path, fields, rows):
     with path.open("w", encoding="utf-8", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=fields, extrasaction="ignore")
+        writer = csv.DictWriter(stream, fieldnames=fields, extrasaction="ignore", lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
+
+
+def split_progress(rows):
+    """Expose one consolidated progress table through the existing validated workflow model."""
+    unique_id(rows, "record_id", "outreach-progress record_id") if rows else None
+    result = {"outreach": [], "events": [], "offers": [], "partnerships": []}
+    destinations = {"outreach": "outreach", "activity": "events", "offer": "offers", "partnership": "partnerships"}
+    for row in rows:
+        record_type = row.get("record_type", "").strip().lower()
+        if record_type not in PROGRESS_TYPES:
+            raise ValueError(f"outreach-progress: invalid record_type {record_type or '<blank>'}")
+        projected = {field: row.get(field, "") for field in PROGRESS_FIELDS[record_type]}
+        if record_type == "outreach":
+            projected["current_status"] = row.get("status", "")
+        elif record_type == "activity":
+            projected["event_id"] = row["record_id"]
+        elif record_type == "offer":
+            projected["offer_id"] = row.get("offer_id", "") or row["record_id"]
+        result[destinations[record_type]].append(projected)
+    return result
 
 
 def unique_id(rows, field, label):
@@ -359,6 +395,8 @@ def load_workspace(source, *, write_scores=False):
     data = {}
     for key, filename in FILES.items():
         fields[key], data[key] = read_csv(source / filename)
+    progress_rows = data.pop("progress")
+    data.update(split_progress(progress_rows))
     data["creators"] = score_creators(data["creators"], load_config())
     validate_relations(data, source)
     if write_scores:
@@ -406,7 +444,7 @@ def page(title, eyebrow, intro, body, *, example=False):
 
 def persona_dashboard(source, *, example=False):
     _, values = parse_persona(Path(source) / "persona.md")
-    source_label = "example/sample-creator-campaign" if example else "workspace"
+    source_label = "02-examples/sample-creator-campaign" if example else "01-workspace"
     status = values.get("Status", "Needs confirmation")
     tone = "good" if status == "Confirmed" else "warn"
     items = [
@@ -427,7 +465,7 @@ def persona_dashboard(source, *, example=False):
 
 
 def outreach_dashboard(data, source, *, example=False):
-    source_label = "example/sample-creator-campaign" if example else "workspace"
+    source_label = "02-examples/sample-creator-campaign" if example else "01-workspace"
     creators = {row["creator_id"]: row for row in data["creators"]}
     outreach = {row["creator_id"]: row for row in data["outreach"]}
     scored = [row for row in creators.values() if row.get("score")]
@@ -461,7 +499,7 @@ def outreach_dashboard(data, source, *, example=False):
     body = f'''<div class="grid">{metrics}</div><section class="grid"><div class="card wide"><h2>Candidate priority and current state</h2>{table(['ID','Creator','Score / tier','Evidence','Current state','Next action or gap'], candidate_rows, 'No creators yet. Confirm the persona, then ask the Agent to discover a specific number with verifiable evidence.')}</div></section>
 <section class="grid"><div class="card wide"><h2>Latest recorded activity</h2>{table(['When','Creator','Event','What happened','Source'], event_rows, 'No actual contact events recorded. Drafts do not create activity.')}</div></section>
 <section class="grid"><div class="card wide"><h2>Offer versions</h2>{table(['Offer','Creator','Scope','Amount','Payment terms','Status'], offer_rows, 'No offers recorded. Keep each scope and payment option as a separate row.')}</div></section>
-<p class="muted">Source files: <span class="path">{source_label}/creators.csv</span>, <span class="path">{source_label}/outreach.csv</span>, <span class="path">{source_label}/activity-log.csv</span> and <span class="path">{source_label}/offers.csv</span>. A draft or score never means a message was sent.</p>'''
+<p class="muted">Source files: <span class="path">{source_label}/creators.csv</span> and <span class="path">{source_label}/outreach-progress.csv</span>. The consolidated progress table keeps outreach state, activity history, offers and partnerships as separate record types. A draft or score never means a message was sent.</p>'''
     return page("Outreach workspace", "Discover, review, follow up", "A decision-ready view of evidence, priority, real contact history, negotiations and next actions.", body, example=example)
 
 
@@ -496,7 +534,7 @@ def spend_value(record):
 
 
 def performance_dashboard(data, *, example=False):
-    source_label = "example/sample-creator-campaign" if example else "workspace"
+    source_label = "02-examples/sample-creator-campaign" if example else "01-workspace"
     creators = {row["creator_id"]: row for row in data["creators"]}
     partnerships = {(row["collaboration_id"], row["deliverable_id"]): row for row in data["partnerships"] if row["status"] in {"Published", "Completed"}}
     grouped = defaultdict(dict)
@@ -563,7 +601,7 @@ def performance_dashboard(data, *, example=False):
     body = f'''<div class="grid">{content}</div><section class="grid"><div class="card wide"><h2>Cumulative performance windows</h2>{table(['Creator','Deliverable','Window','Views','Clicks','Downloads','Installs','Activated','Spend','Cost / download','Cost / install','Click → download','Download → install','Install → activate','Evidence'], rows, 'No eligible D7, D14 or D30 measurements. Add evidence only after publication.')}</div></section>
 <section class="grid"><div class="card wide"><h2>Comparable results</h2>{table(['Window','Creator','Deliverable','Downloads','Installs','Cost / download','Cost / install','Attribution','Metric definition'], comparison_rows, 'Insufficient data for a like-for-like comparison. Two or more deliverables must share the same window, attribution source, metric definition and currency.')}</div></section>
 <section class="grid"><div class="card half"><h2>Insights / Next Actions</h2><ul>{insight_items}</ul></div><div class="card half"><h2>How to read this</h2><p>D7, D14 and D30 are cumulative snapshots from each deliverable’s publication date. Do not add them together. Spend is the cumulative amount recorded for one deliverable and is repeated across windows for context, never summed. Cost metrics are N/A when spend, outcome, attribution scope or tracking verification is missing.</p></div><div class="card wide"><h2>Decision limits</h2><p>Compare formats and creators only when the observation window, attribution source, metric definition and currency match. Small samples and incomplete attribution support hypotheses, not guaranteed growth claims.</p></div></section>
-<p class="muted">Source files: <span class="path">{source_label}/partnerships.csv</span> and <span class="path">{source_label}/performance.csv</span>. The stored UTM URL is evidence of link design, not by itself evidence that tracking worked.</p>'''
+<p class="muted">Source files: <span class="path">{source_label}/outreach-progress.csv</span> and <span class="path">{source_label}/performance.csv</span>. Partnership records live in the consolidated progress table. The stored UTM URL is evidence of link design, not by itself evidence that tracking worked.</p>'''
     return page("Partnership performance", "Published evidence only", "Cumulative post-publication evidence, conversion efficiency and the limits that matter before the next decision.", body, example=example)
 
 
